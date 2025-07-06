@@ -1,21 +1,19 @@
-"""Data storage utilities for Parquet and JSONL output."""
+"""Data storage utilities for text and JSONL output."""
 
 import json
 import sys
 from pathlib import Path
-from typing import Iterator, Dict, Any
-import pandas as pd
+from typing import Iterator, Dict, Any, Union
 
 
-def save_to_parquet(data: Iterator[Dict[str, Any]], file_path: Path) -> None:
-    """Save data to a Parquet file."""
+def save_logins_to_txt(data: Iterator[Dict[str, Any]], file_path: Path) -> None:
+    """Save login names to a text file, one per line."""
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    df = pd.DataFrame(list(data))
-    df.to_parquet(file_path, index=False)
+    logins = [item["login"] for item in data]
+    file_path.write_text("\n".join(logins) + "\n")
 
 
-def write_to_jsonl(data: Iterator[Dict[str, Any]], output_file=None) -> None:
-    """Write data to JSONL format (stdout or file)."""
-    output = output_file or sys.stdout
+def write_logins_to_stdout(data: Iterator[Dict[str, Any]]) -> None:
+    """Write login names to stdout, one per line."""
     for item in data:
-        print(json.dumps(item), file=output)
+        print(item["login"])

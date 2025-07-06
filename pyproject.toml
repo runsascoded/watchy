@@ -22,8 +22,6 @@ classifiers = [
 ]
 dependencies = [
     "requests",
-    "pandas",
-    "pyarrow",
     "click",
 ]
 

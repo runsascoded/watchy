@@ -11,7 +11,7 @@ from click import argument, command, echo, group, option, pass_context
 
 from .auth import get_github_token
 from .github import GitHubClient
-from .storage import save_to_parquet, write_to_jsonl
+from .storage import save_logins_to_txt, write_logins_to_stdout
 
 err = partial(echo, err=True)
 
@@ -40,8 +40,8 @@ def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
     - 'owner/repo' format for a specific repository
     - 'user' or 'org' format to fetch stars for all repositories owned by the user/org
 
-    OUTPUT can be '-' for stdout (JSONL) or a file path for Parquet.
-    If not specified, saves to .watchy/github/stars/<owner>/<repo>.parquet or .watchy/github/stars/<user>/_all.parquet
+    OUTPUT can be '-' for stdout (login names) or a file path for text file.
+    If not specified, saves to .watchy/github/stars/<owner>/<repo>.txt
     """
     client = ctx.obj["client"]
 
@@ -52,14 +52,14 @@ def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
             stargazers = list(client.get_stargazers(owner, repo_name))
 
             if output == "-":
-                write_to_jsonl(iter(stargazers))
+                write_logins_to_stdout(iter(stargazers))
             else:
                 if output is None:
-                    output_path = Path(".watchy/github/stars") / owner / f"{repo_name}.parquet"
+                    output_path = Path(".watchy/github/stars") / owner / f"{repo_name}.txt"
                 else:
                     output_path = Path(output)
 
-                save_to_parquet(iter(stargazers), output_path)
+                save_logins_to_txt(iter(stargazers), output_path)
                 err(f"Stargazers saved to {output_path}")
 
             err(f"Found {len(stargazers)} stargazers for {repo_or_user}")
@@ -79,21 +79,18 @@ def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
                 stargazers = list(client.get_stargazers(user, repo_name))
 
                 if output == "-":
-                    # For stdout mode, add repo info to each stargazer record and accumulate
-                    for stargazer in stargazers:
-                        stargazer["repo_name"] = repo_name
-                        stargazer["repo_full_name"] = f"{user}/{repo_name}"
+                    # For stdout mode, accumulate all stargazers
                     all_stargazers.extend(stargazers)
                 else:
                     # For file mode, save each repo separately
                     if output is None:
-                        repo_output_path = Path(".watchy/github/stars") / user / f"{repo_name}.parquet"
+                        repo_output_path = Path(".watchy/github/stars") / user / f"{repo_name}.txt"
                     else:
                         # If custom output path provided for org mode, append repo name
                         base_path = Path(output)
-                        repo_output_path = base_path.parent / f"{base_path.stem}_{repo_name}.parquet"
+                        repo_output_path = base_path.parent / f"{base_path.stem}_{repo_name}.txt"
 
-                    save_to_parquet(iter(stargazers), repo_output_path)
+                    save_logins_to_txt(iter(stargazers), repo_output_path)
                     err(f"Stargazers for {user}/{repo_name} ({len(stargazers)}) saved to {repo_output_path}")
 
                 # Sleep between repo fetches (except after the last one)
@@ -101,7 +98,7 @@ def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
                     sleep(sleep_s)
 
             if output == "-":
-                write_to_jsonl(iter(all_stargazers))
+                write_logins_to_stdout(iter(all_stargazers))
                 err(f"Found {len(all_stargazers)} total stargazers across {len(repos)} repositories for {user}")
             else:
                 err(f"Saved stargazers for {len(repos)} repositories belonging to {user}")
@@ -119,8 +116,8 @@ def follows(ctx, user: str, output: Optional[str]):
     """Fetch followers for a user or organization.
 
     USER is the GitHub username or organization name.
-    OUTPUT can be '-' for stdout (JSONL) or a file path for Parquet.
-    If not specified, saves to .watchy/github/follows/<user>.parquet
+    OUTPUT can be '-' for stdout (login names) or a file path for text file.
+    If not specified, saves to .watchy/github/follows/<user>.txt
     """
     client = ctx.obj["client"]
 
@@ -128,14 +125,14 @@ def follows(ctx, user: str, output: Optional[str]):
         followers = list(client.get_followers(user))
 
         if output == "-":
-            write_to_jsonl(iter(followers))
+            write_logins_to_stdout(iter(followers))
         else:
             if output is None:
-                output_path = Path(".watchy/github/follows") / f"{user}.parquet"
+                output_path = Path(".watchy/github/follows") / f"{user}.txt"
             else:
                 output_path = Path(output)
 
-            save_to_parquet(iter(followers), output_path)
+            save_logins_to_txt(iter(followers), output_path)
             err(f"Followers saved to {output_path}")
 
         err(f"Found {len(followers)} followers for {user}")
