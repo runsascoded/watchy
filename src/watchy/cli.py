@@ -1,5 +1,6 @@
 """Command-line interface for watchy."""
 
+from functools import partial
 from os import getenv
 from pathlib import Path
 from sys import exit
@@ -11,6 +12,8 @@ from click import argument, command, echo, group, option, pass_context
 from .auth import get_github_token
 from .github import GitHubClient
 from .storage import save_to_parquet, write_to_jsonl
+
+err = partial(echo, err=True)
 
 
 @group()
@@ -57,20 +60,20 @@ def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
                     output_path = Path(output)
 
                 save_to_parquet(stargazers, output_path)
-                echo(f"Stargazers saved to {output_path}")
+                err(f"Stargazers saved to {output_path}")
         else:
             # User/org format: fetch all repositories and their stargazers
             user = repo_or_user
             repos = list(client.get_repositories(user))
 
             if not repos:
-                echo(f"No repositories found for user/org: {user}", err=True)
+                err(f"No repositories found for user/org: {user}")
                 exit(1)
 
             all_stargazers = []
             for i, repo in enumerate(repos):
                 repo_name = repo["name"]
-                echo(f"Fetching stargazers for {user}/{repo_name}...")
+                err(f"Fetching stargazers for {user}/{repo_name}...")
                 stargazers = list(client.get_stargazers(user, repo_name))
 
                 # Add repo info to each stargazer record
@@ -93,10 +96,10 @@ def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
                     output_path = Path(output)
 
                 save_to_parquet(iter(all_stargazers), output_path)
-                echo(f"All stargazers for {user} ({len(all_stargazers)} total) saved to {output_path}")
+                err(f"All stargazers for {user} ({len(all_stargazers)} total) saved to {output_path}")
 
     except Exception as e:
-        echo(f"Error fetching stargazers: {e}", err=True)
+        err(f"Error fetching stargazers: {e}")
         exit(1)
 
 
@@ -125,10 +128,10 @@ def follows(ctx, user: str, output: Optional[str]):
                 output_path = Path(output)
 
             save_to_parquet(followers, output_path)
-            echo(f"Followers saved to {output_path}")
+            err(f"Followers saved to {output_path}")
 
     except Exception as e:
-        echo(f"Error fetching followers: {e}", err=True)
+        err(f"Error fetching followers: {e}")
         exit(1)
 
 
