@@ -1,19 +1,21 @@
 """Command-line interface for watchy."""
 
-import os
-import sys
-import time
+from os import getenv
 from pathlib import Path
+from sys import exit
+from time import sleep
 from typing import Optional
-import click
+
+from click import argument, command, echo, group, option, pass_context
+
 from .auth import get_github_token
 from .github import GitHubClient
 from .storage import save_to_parquet, write_to_jsonl
 
 
-@click.group()
-@click.option("--token", help="GitHub API token (overrides auto-detection)")
-@click.pass_context
+@group()
+@option("--token", help="GitHub API token (overrides auto-detection)")
+@pass_context
 def main(ctx, token: Optional[str]):
     """Watchy - Track GitHub stargazers and followers."""
     ctx.ensure_object(dict)
@@ -24,10 +26,10 @@ def main(ctx, token: Optional[str]):
 
 
 @main.command()
-@click.argument("repo_or_user")
-@click.argument("output", required=False)
-@click.option("-s", "--sleep-s", default=0.1, help="Sleep seconds between repo fetches (default: 0.1)")
-@click.pass_context
+@argument("repo_or_user")
+@argument("output", required=False)
+@option("-s", "--sleep-s", default=0.1, help="Sleep seconds between repo fetches (default: 0.1)")
+@pass_context
 def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
     """Fetch stargazers for a repository or all repositories of a user/org.
 
@@ -55,20 +57,20 @@ def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
                     output_path = Path(output)
 
                 save_to_parquet(stargazers, output_path)
-                click.echo(f"Stargazers saved to {output_path}")
+                echo(f"Stargazers saved to {output_path}")
         else:
             # User/org format: fetch all repositories and their stargazers
             user = repo_or_user
             repos = list(client.get_repositories(user))
 
             if not repos:
-                click.echo(f"No repositories found for user/org: {user}", err=True)
-                sys.exit(1)
+                echo(f"No repositories found for user/org: {user}", err=True)
+                exit(1)
 
             all_stargazers = []
             for i, repo in enumerate(repos):
                 repo_name = repo["name"]
-                click.echo(f"Fetching stargazers for {user}/{repo_name}...")
+                echo(f"Fetching stargazers for {user}/{repo_name}...")
                 stargazers = list(client.get_stargazers(user, repo_name))
 
                 # Add repo info to each stargazer record
@@ -80,7 +82,7 @@ def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
 
                 # Sleep between repo fetches (except after the last one)
                 if i < len(repos) - 1 and sleep_s > 0:
-                    time.sleep(sleep_s)
+                    sleep(sleep_s)
 
             if output == "-":
                 write_to_jsonl(iter(all_stargazers))
@@ -91,17 +93,17 @@ def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
                     output_path = Path(output)
 
                 save_to_parquet(iter(all_stargazers), output_path)
-                click.echo(f"All stargazers for {user} ({len(all_stargazers)} total) saved to {output_path}")
+                echo(f"All stargazers for {user} ({len(all_stargazers)} total) saved to {output_path}")
 
     except Exception as e:
-        click.echo(f"Error fetching stargazers: {e}", err=True)
-        sys.exit(1)
+        echo(f"Error fetching stargazers: {e}", err=True)
+        exit(1)
 
 
 @main.command()
-@click.argument("user")
-@click.argument("output", required=False)
-@click.pass_context
+@argument("user")
+@argument("output", required=False)
+@pass_context
 def follows(ctx, user: str, output: Optional[str]):
     """Fetch followers for a user or organization.
 
@@ -123,11 +125,11 @@ def follows(ctx, user: str, output: Optional[str]):
                 output_path = Path(output)
 
             save_to_parquet(followers, output_path)
-            click.echo(f"Followers saved to {output_path}")
+            echo(f"Followers saved to {output_path}")
 
     except Exception as e:
-        click.echo(f"Error fetching followers: {e}", err=True)
-        sys.exit(1)
+        echo(f"Error fetching followers: {e}", err=True)
+        exit(1)
 
 
 if __name__ == "__main__":
