@@ -49,18 +49,20 @@ def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
         if "/" in repo_or_user:
             # Single repository format: owner/repo
             owner, repo_name = repo_or_user.split("/", 1)
-            stargazers = client.get_stargazers(owner, repo_name)
+            stargazers = list(client.get_stargazers(owner, repo_name))
 
             if output == "-":
-                write_to_jsonl(stargazers)
+                write_to_jsonl(iter(stargazers))
             else:
                 if output is None:
                     output_path = Path(".watchy/github/stars") / owner / f"{repo_name}.parquet"
                 else:
                     output_path = Path(output)
 
-                save_to_parquet(stargazers, output_path)
+                save_to_parquet(iter(stargazers), output_path)
                 err(f"Stargazers saved to {output_path}")
+
+            err(f"Found {len(stargazers)} stargazers for {repo_or_user}")
         else:
             # User/org format: fetch all repositories and their stargazers
             user = repo_or_user
@@ -76,12 +78,23 @@ def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
                 err(f"Fetching stargazers for {user}/{repo_name}...")
                 stargazers = list(client.get_stargazers(user, repo_name))
 
-                # Add repo info to each stargazer record
-                for stargazer in stargazers:
-                    stargazer["repo_name"] = repo_name
-                    stargazer["repo_full_name"] = f"{user}/{repo_name}"
+                if output == "-":
+                    # For stdout mode, add repo info to each stargazer record and accumulate
+                    for stargazer in stargazers:
+                        stargazer["repo_name"] = repo_name
+                        stargazer["repo_full_name"] = f"{user}/{repo_name}"
+                    all_stargazers.extend(stargazers)
+                else:
+                    # For file mode, save each repo separately
+                    if output is None:
+                        repo_output_path = Path(".watchy/github/stars") / user / f"{repo_name}.parquet"
+                    else:
+                        # If custom output path provided for org mode, append repo name
+                        base_path = Path(output)
+                        repo_output_path = base_path.parent / f"{base_path.stem}_{repo_name}.parquet"
 
-                all_stargazers.extend(stargazers)
+                    save_to_parquet(iter(stargazers), repo_output_path)
+                    err(f"Stargazers for {user}/{repo_name} ({len(stargazers)}) saved to {repo_output_path}")
 
                 # Sleep between repo fetches (except after the last one)
                 if i < len(repos) - 1 and sleep_s > 0:
@@ -89,14 +102,9 @@ def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
 
             if output == "-":
                 write_to_jsonl(iter(all_stargazers))
+                err(f"Found {len(all_stargazers)} total stargazers across {len(repos)} repositories for {user}")
             else:
-                if output is None:
-                    output_path = Path(".watchy/github/stars") / user / "_all.parquet"
-                else:
-                    output_path = Path(output)
-
-                save_to_parquet(iter(all_stargazers), output_path)
-                err(f"All stargazers for {user} ({len(all_stargazers)} total) saved to {output_path}")
+                err(f"Saved stargazers for {len(repos)} repositories belonging to {user}")
 
     except Exception as e:
         err(f"Error fetching stargazers: {e}")
@@ -117,18 +125,20 @@ def follows(ctx, user: str, output: Optional[str]):
     client = ctx.obj["client"]
 
     try:
-        followers = client.get_followers(user)
+        followers = list(client.get_followers(user))
 
         if output == "-":
-            write_to_jsonl(followers)
+            write_to_jsonl(iter(followers))
         else:
             if output is None:
                 output_path = Path(".watchy/github/follows") / f"{user}.parquet"
             else:
                 output_path = Path(output)
 
-            save_to_parquet(followers, output_path)
+            save_to_parquet(iter(followers), output_path)
             err(f"Followers saved to {output_path}")
+
+        err(f"Found {len(followers)} followers for {user}")
 
     except Exception as e:
         err(f"Error fetching followers: {e}")
