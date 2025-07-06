@@ -19,7 +19,7 @@ WATCHY_DIR = Path(".watchy/github")
 
 
 @group()
-@option("--token", help="GitHub API token (overrides auto-detection)")
+@option("-t", "--token", help="GitHub API token (overrides auto-detection)")
 @pass_context
 def main(ctx, token: Optional[str]):
     """Watchy - Track GitHub stargazers and followers."""
@@ -31,76 +31,53 @@ def main(ctx, token: Optional[str]):
 
 
 @main.command()
-@argument("repo_or_user")
-@argument("output", required=False)
+@argument("targets", nargs=-1, required=True)
 @option("-s", "--sleep-s", default=0.1, help="Sleep seconds between repo fetches (default: 0.1)")
 @pass_context
-def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
-    """Fetch stargazers for a repository or all repositories of a user/org.
+def stars(ctx, targets: tuple[str, ...], sleep_s: float):
+    """Fetch stargazers for repositories or all repositories of users/orgs.
 
-    REPO_OR_USER can be:
-    - 'owner/repo' format for a specific repository
+    TARGETS can be:
+    - 'owner/repo' format for specific repositories
     - 'user' or 'org' format to fetch stars for all repositories owned by the user/org
+    - Multiple targets can be specified
 
-    OUTPUT can be '-' for stdout (login names) or a file path for text file.
-    If not specified, saves to default location under .watchy/
+    Always saves to files under .watchy/ and prints usernames to stdout.
     """
     client = ctx.obj["client"]
 
     try:
-        if "/" in repo_or_user:
-            # Single repository format: owner/repo
-            owner, repo_name = repo_or_user.split("/", 1)
-            stargazers = list(client.get_stargazers(owner, repo_name))
+        for target in targets:
+            if "/" in target:
+                # Single repository format: owner/repo
+                owner, repo_name = target.split("/", 1)
+                stargazers = list(client.get_stargazers(owner, repo_name))
 
-            err(f"{len(stargazers)} stargazers for {repo_or_user}")
-
-            if output == "-":
-                print_logins_limited([item["login"] for item in stargazers])
-            else:
-                if output is None:
-                    output_path = WATCHY_DIR / "stars" / owner / f"{repo_name}.txt"
-                else:
-                    output_path = Path(output)
-
+                err(f"{len(stargazers)} stargazers for {target}")
+                output_path = WATCHY_DIR / "stars" / owner / f"{repo_name}.txt"
                 logins = save_logins_to_txt(iter(stargazers), output_path)
                 print_logins_limited(logins)
-        else:
-            # User/org format: fetch all repositories and their stargazers
-            user = repo_or_user
-            repos = list(client.get_repositories(user))
+            else:
+                # User/org format: fetch all repositories and their stargazers
+                user = target
+                repos = list(client.get_repositories(user))
 
-            if not repos:
-                err(f"No repositories found for user/org: {user}")
-                exit(1)
+                if not repos:
+                    err(f"No repositories found for user/org: {user}")
+                    continue
 
-            for i, repo in enumerate(repos):
-                repo_name = repo["name"]
-                stargazers = list(client.get_stargazers(user, repo_name))
+                for i, repo in enumerate(repos):
+                    repo_name = repo["name"]
+                    stargazers = list(client.get_stargazers(user, repo_name))
 
-                err(f"{len(stargazers)} stargazers for {user}/{repo_name}")
-
-                if output == "-":
-                    # For stdout mode, print each repo's stargazers directly
-                    print_logins_limited([item["login"] for item in stargazers])
-                else:
-                    # For file mode, save each repo separately (also prints to stdout)
-                    if output is None:
-                        repo_output_path = WATCHY_DIR / "stars" / user / f"{repo_name}.txt"
-                    else:
-                        # If custom output path provided for org mode, append repo name
-                        base_path = Path(output)
-                        repo_output_path = base_path.parent / f"{base_path.stem}_{repo_name}.txt"
-
+                    err(f"{len(stargazers)} stargazers for {user}/{repo_name}")
+                    repo_output_path = WATCHY_DIR / "stars" / user / f"{repo_name}.txt"
                     logins = save_logins_to_txt(iter(stargazers), repo_output_path)
                     print_logins_limited(logins)
 
-                # Sleep between repo fetches (except after the last one)
-                if i < len(repos) - 1 and sleep_s > 0:
-                    sleep(sleep_s)
-
-            if output != "-":
-                err(f"Saved stargazers for {len(repos)} repositories belonging to {user}")
+                    # Sleep between repo fetches (except after the last one)
+                    if i < len(repos) - 1 and sleep_s > 0:
+                        sleep(sleep_s)
 
     except Exception as e:
         err(f"Error fetching stargazers: {e}")
@@ -108,31 +85,24 @@ def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
 
 
 @main.command()
-@argument("user")
-@argument("output", required=False)
+@argument("targets", nargs=-1, required=True)
 @pass_context
-def follows(ctx, user: str, output: Optional[str]):
-    """Fetch followers for a user or organization.
+def follows(ctx, targets: tuple[str, ...]):
+    """Fetch followers for users or organizations.
 
-    USER is the GitHub username or organization name.
-    OUTPUT can be '-' for stdout (login names) or a file path for text file.
-    If not specified, saves to default location under .watchy/
+    TARGETS are GitHub usernames or organization names.
+    Multiple targets can be specified.
+
+    Always saves to files under .watchy/ and prints usernames to stdout.
     """
     client = ctx.obj["client"]
 
     try:
-        followers = list(client.get_followers(user))
+        for user in targets:
+            followers = list(client.get_followers(user))
 
-        err(f"{len(followers)} followers for {user}")
-
-        if output == "-":
-            print_logins_limited([item["login"] for item in followers])
-        else:
-            if output is None:
-                output_path = WATCHY_DIR / "follows" / f"{user}.txt"
-            else:
-                output_path = Path(output)
-
+            err(f"{len(followers)} followers for {user}")
+            output_path = WATCHY_DIR / "follows" / f"{user}.txt"
             logins = save_logins_to_txt(iter(followers), output_path)
             print_logins_limited(logins)
 
