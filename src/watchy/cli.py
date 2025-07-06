@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 import click
@@ -25,8 +26,9 @@ def main(ctx, token: Optional[str]):
 @main.command()
 @click.argument("repo_or_user")
 @click.argument("output", required=False)
+@click.option("-s", "--sleep-s", default=0.1, help="Sleep seconds between repo fetches (default: 0.1)")
 @click.pass_context
-def stars(ctx, repo_or_user: str, output: Optional[str]):
+def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
     """Fetch stargazers for a repository or all repositories of a user/org.
 
     REPO_OR_USER can be:
@@ -64,7 +66,7 @@ def stars(ctx, repo_or_user: str, output: Optional[str]):
                 sys.exit(1)
 
             all_stargazers = []
-            for repo in repos:
+            for i, repo in enumerate(repos):
                 repo_name = repo["name"]
                 click.echo(f"Fetching stargazers for {user}/{repo_name}...")
                 stargazers = list(client.get_stargazers(user, repo_name))
@@ -75,6 +77,10 @@ def stars(ctx, repo_or_user: str, output: Optional[str]):
                     stargazer["repo_full_name"] = f"{user}/{repo_name}"
 
                 all_stargazers.extend(stargazers)
+
+                # Sleep between repo fetches (except after the last one)
+                if i < len(repos) - 1 and sleep_s > 0:
+                    time.sleep(sleep_s)
 
             if output == "-":
                 write_to_jsonl(iter(all_stargazers))
