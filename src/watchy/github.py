@@ -58,3 +58,9 @@ class GitHubClient:
         url = f"https://api.github.com/users/{user}/followers"
         params = {"per_page": 100}
         yield from self._paginate(url, params)
+
+    def get_repositories(self, user: str) -> Iterator[Dict[str, Any]]:
+        """Get repositories for a user or organization."""
+        url = f"https://api.github.com/users/{user}/repos"
+        params = {"per_page": 100, "type": "owner"}
+        yield from self._paginate(url, params)
