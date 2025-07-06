@@ -15,7 +15,10 @@ from .storage import save_logins_to_txt, write_logins_to_stdout, print_logins_li
 
 err = partial(echo, err=True)
 
-WATCHY_DIR = Path(".watchy/github")
+def get_watchy_dir() -> Path:
+    """Get the watchy data directory from environment or default."""
+    watchy_root = getenv("WATCHY_DIR", ".watchy")
+    return Path(watchy_root) / "github"
 
 
 @group()
@@ -54,7 +57,7 @@ def stars(ctx, targets: tuple[str, ...], sleep_s: float):
                 stargazers = list(client.get_stargazers(owner, repo_name))
 
                 err(f"{len(stargazers)} stargazers for {target}")
-                output_path = WATCHY_DIR / "stars" / owner / f"{repo_name}.txt"
+                output_path = get_watchy_dir() / "stars" / owner / f"{repo_name}.txt"
                 logins = save_logins_to_txt(iter(stargazers), output_path)
                 print_logins_limited(logins)
             else:
@@ -71,7 +74,7 @@ def stars(ctx, targets: tuple[str, ...], sleep_s: float):
                     stargazers = list(client.get_stargazers(user, repo_name))
 
                     err(f"{len(stargazers)} stargazers for {user}/{repo_name}")
-                    repo_output_path = WATCHY_DIR / "stars" / user / f"{repo_name}.txt"
+                    repo_output_path = get_watchy_dir() / "stars" / user / f"{repo_name}.txt"
                     logins = save_logins_to_txt(iter(stargazers), repo_output_path)
                     print_logins_limited(logins)
 
@@ -102,7 +105,7 @@ def follows(ctx, targets: tuple[str, ...]):
             followers = list(client.get_followers(user))
 
             err(f"{len(followers)} followers for {user}")
-            output_path = WATCHY_DIR / "follows" / f"{user}.txt"
+            output_path = get_watchy_dir() / "follows" / f"{user}.txt"
             logins = save_logins_to_txt(iter(followers), output_path)
             print_logins_limited(logins)
 
