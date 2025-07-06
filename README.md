@@ -1,6 +1,10 @@
 # `watchy`
 
+[![PyPI version](https://badge.fury.io/py/watchy.svg)](https://badge.fury.io/py/watchy)
+
 Python library and CLI tool for fetching and tracking GitHub stargazers and followers.
+
+See [ryan-williams/.watchy] for [an example daily GHA][GHA] that polls for stargazers and followers of a few orgs and repos.
 
 ## Features
 
@@ -11,7 +15,7 @@ Python library and CLI tool for fetching and tracking GitHub stargazers and foll
 ## Installation
 
 ```bash
-pip install -e .
+pip install watchy
 ```
 
 ## Usage
@@ -51,7 +55,7 @@ watchy follows user1 orgname user2
 ### Output
 
 `watchy` always:
-- saves usernames to text files under `.watchy/`
+- saves usernames to text files under `.watchy/` (configurable with `$WATCHY_DIR`)
 - prints usernames to stdout (first 5, ..., last 5 if >10 total)
 - shows counts in log messages (to stderr)
 
@@ -77,7 +81,7 @@ user42
 
 ### Authentication
 
-Watchy automatically loads GitHub tokens from:
+`watchy` automatically loads GitHub tokens from:
 
 1. `--token` command line argument
 2. `GITHUB_TOKEN` environment variable
@@ -135,3 +139,6 @@ pip install -e .[dev]
 # Lint
 ruff check src/watchy/
 ```
+
+[ryan-williams/.watchy]: https://github.com/ryan-williams/.watchy
+[GHA]: https://github.com/ryan-williams/.watchy/blob/main/.github/workflows/update.yml
