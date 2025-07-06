@@ -4,12 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "watchy"
-version = "0.0.2"
+version = "0.0.3"
 description = "Fetch and track GitHub stargazers and followers"
 authors = [{name = "Ryan Williams", email = "ryan@runsascoded.com"}]
 readme = "README.md"
-homepage = "https://github.com/runsascoded/watchy"
-repository = "https://github.com/runsascoded/watchy"
 requires-python = ">=3.9"
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -35,6 +33,9 @@ dev = [
 
 [project.scripts]
 watchy = "watchy.cli:main"
+
+[project.urls]
+repository = "https://github.com/runsascoded/watchy"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/watchy"]
