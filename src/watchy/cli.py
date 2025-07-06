@@ -11,7 +11,7 @@ from click import argument, command, echo, group, option, pass_context
 
 from .auth import get_github_token
 from .github import GitHubClient
-from .storage import save_logins_to_txt, write_logins_to_stdout
+from .storage import save_logins_to_txt, write_logins_to_stdout, print_logins_limited
 
 err = partial(echo, err=True)
 
@@ -51,18 +51,19 @@ def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
             owner, repo_name = repo_or_user.split("/", 1)
             stargazers = list(client.get_stargazers(owner, repo_name))
 
+            err(f"{len(stargazers)} stargazers for {repo_or_user}")
+
             if output == "-":
-                write_logins_to_stdout(iter(stargazers))
+                print_logins_limited([item["login"] for item in stargazers])
             else:
                 if output is None:
                     output_path = Path(".watchy/github/stars") / owner / f"{repo_name}.txt"
                 else:
                     output_path = Path(output)
 
-                save_logins_to_txt(iter(stargazers), output_path)
+                logins = save_logins_to_txt(iter(stargazers), output_path)
+                print_logins_limited(logins)
                 err(f"Stargazers saved to {output_path}")
-
-            err(f"Found {len(stargazers)} stargazers for {repo_or_user}")
         else:
             # User/org format: fetch all repositories and their stargazers
             user = repo_or_user
@@ -72,17 +73,18 @@ def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
                 err(f"No repositories found for user/org: {user}")
                 exit(1)
 
-            all_stargazers = []
             for i, repo in enumerate(repos):
                 repo_name = repo["name"]
                 err(f"Fetching stargazers for {user}/{repo_name}...")
                 stargazers = list(client.get_stargazers(user, repo_name))
 
+                err(f"{len(stargazers)} stargazers for {user}/{repo_name}")
+
                 if output == "-":
-                    # For stdout mode, accumulate all stargazers
-                    all_stargazers.extend(stargazers)
+                    # For stdout mode, print each repo's stargazers directly
+                    print_logins_limited([item["login"] for item in stargazers])
                 else:
-                    # For file mode, save each repo separately
+                    # For file mode, save each repo separately (also prints to stdout)
                     if output is None:
                         repo_output_path = Path(".watchy/github/stars") / user / f"{repo_name}.txt"
                     else:
@@ -90,17 +92,15 @@ def stars(ctx, repo_or_user: str, output: Optional[str], sleep_s: float):
                         base_path = Path(output)
                         repo_output_path = base_path.parent / f"{base_path.stem}_{repo_name}.txt"
 
-                    save_logins_to_txt(iter(stargazers), repo_output_path)
-                    err(f"Stargazers for {user}/{repo_name} ({len(stargazers)}) saved to {repo_output_path}")
+                    logins = save_logins_to_txt(iter(stargazers), repo_output_path)
+                    print_logins_limited(logins)
+                    err(f"Saved to {repo_output_path}")
 
                 # Sleep between repo fetches (except after the last one)
                 if i < len(repos) - 1 and sleep_s > 0:
                     sleep(sleep_s)
 
-            if output == "-":
-                write_logins_to_stdout(iter(all_stargazers))
-                err(f"Found {len(all_stargazers)} total stargazers across {len(repos)} repositories for {user}")
-            else:
+            if output != "-":
                 err(f"Saved stargazers for {len(repos)} repositories belonging to {user}")
 
     except Exception as e:
@@ -124,18 +124,19 @@ def follows(ctx, user: str, output: Optional[str]):
     try:
         followers = list(client.get_followers(user))
 
+        err(f"{len(followers)} followers for {user}")
+
         if output == "-":
-            write_logins_to_stdout(iter(followers))
+            print_logins_limited([item["login"] for item in followers])
         else:
             if output is None:
                 output_path = Path(".watchy/github/follows") / f"{user}.txt"
             else:
                 output_path = Path(output)
 
-            save_logins_to_txt(iter(followers), output_path)
+            logins = save_logins_to_txt(iter(followers), output_path)
+            print_logins_limited(logins)
             err(f"Followers saved to {output_path}")
-
-        err(f"Found {len(followers)} followers for {user}")
 
     except Exception as e:
         err(f"Error fetching followers: {e}")
