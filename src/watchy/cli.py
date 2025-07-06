@@ -5,16 +5,20 @@ import sys
 from pathlib import Path
 from typing import Optional
 import click
+from .auth import get_github_token
 from .github import GitHubClient
 from .storage import save_to_parquet, write_to_jsonl
 
 
 @click.group()
-@click.option("--token", envvar="GITHUB_TOKEN", help="GitHub API token (or set GITHUB_TOKEN env var)")
+@click.option("--token", help="GitHub API token (overrides auto-detection)")
 @click.pass_context
 def main(ctx, token: Optional[str]):
     """Watchy - Track GitHub stargazers and followers."""
     ctx.ensure_object(dict)
+    # Use provided token or auto-detect from various sources
+    if token is None:
+        token = get_github_token()
     ctx.obj["client"] = GitHubClient(token)
 
 
