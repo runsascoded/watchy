@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "watchy"
-version = "0.0.5"
+version = "0.0.7"
 description = "Fetch and track GitHub stargazers and followers"
 authors = [{name = "Ryan Williams", email = "ryan@runsascoded.com"}]
 readme = "README.md"
