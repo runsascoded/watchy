@@ -287,8 +287,9 @@ def format_commit_message(changes):
 @main.command
 @argument("refspec_str", required=False)
 @option("-n", "--dry-run", is_flag=True, help="Show what would be committed without actually committing")
+@option("--amend", is_flag=True, help="Amend the last commit with a new message based on its changes")
 @pass_context
-def commit(ctx, refspec_str: str, dry_run: bool):
+def commit(ctx, refspec_str: str, dry_run: bool, amend: bool):
     """Generate and create a commit with a formatted message based on Git changes.
 
     By default, analyzes uncommitted changes from 'watchy stars' and 'watchy follows' commands.
@@ -304,11 +305,20 @@ def commit(ctx, refspec_str: str, dry_run: bool):
     - 📂 New repositories being tracked
 
     Use --dry-run to preview the commit message without committing.
+    Use --amend to rewrite the last commit's message based on its changes.
     """
     # Check if we're in a git repository
     if not proc.check("git", "rev-parse", "--git-dir"):
         err("Not in a git repository")
         exit(1)
+
+    # Handle --amend option
+    if amend:
+        if refspec_str:
+            err("Cannot use --amend with refspec argument")
+            exit(1)
+        # For amend, analyze the HEAD commit
+        refspec_str = "HEAD"
 
     # Parse the git changes
     changes = parse_git_changes(refspec_str)
@@ -319,7 +329,7 @@ def commit(ctx, refspec_str: str, dry_run: bool):
     # Generate commit message
     commit_message = format_commit_message(changes)
 
-    if refspec_str or dry_run:
+    if (refspec_str and not amend) or dry_run:
         if refspec_str:
             echo(f"Commit message for {refspec_str}:")
         else:
@@ -328,41 +338,47 @@ def commit(ctx, refspec_str: str, dry_run: bool):
         echo(commit_message)
         echo("=" * 50)
 
-        # If analyzing specific commits, don't actually commit
-        if refspec_str:
+        # If analyzing specific commits (but not amending), don't actually commit
+        if refspec_str and not amend:
             return
         elif dry_run:
             return
 
-    # Check if there are any changes to commit
+    # Handle amend vs normal commit differently
     try:
-        # Check for staged changes (git diff --cached --quiet returns 1 if changes exist)
-        try:
-            proc.run("git", "diff", "--cached", "--quiet")
-            staged_changes = False
-        except:
-            staged_changes = True
+        if amend:
+            # For amend, just rewrite the commit message
+            proc.run("git", "commit", "--amend", "-m", commit_message)
+            echo(f"Amended commit with new message:")
+            echo(commit_message)
+        else:
+            # Check if there are any changes to commit
+            # Check for staged changes (git diff --cached --quiet returns 1 if changes exist)
+            try:
+                proc.run("git", "diff", "--cached", "--quiet")
+                staged_changes = False
+            except:
+                staged_changes = True
 
-        # Check for unstaged changes (git diff --quiet returns 1 if changes exist)
-        try:
-            proc.run("git", "diff", "--quiet")
-            unstaged_changes = False
-        except:
-            unstaged_changes = True
+            # Check for unstaged changes (git diff --quiet returns 1 if changes exist)
+            try:
+                proc.run("git", "diff", "--quiet")
+                unstaged_changes = False
+            except:
+                unstaged_changes = True
 
-        if not staged_changes and not unstaged_changes:
-            echo("No changes to commit")
-            return
+            if not staged_changes and not unstaged_changes:
+                echo("No changes to commit")
+                return
 
-        # Stage all changes if there are unstaged changes
-        if unstaged_changes:
-            proc.run("git", "add", ".")
+            # Stage all changes if there are unstaged changes
+            if unstaged_changes:
+                proc.run("git", "add", ".")
 
-        # Create the commit
-        proc.run("git", "commit", "-m", commit_message)
-
-        echo(f"Committed changes with message:")
-        echo(commit_message)
+            # Create the commit
+            proc.run("git", "commit", "-m", commit_message)
+            echo(f"Committed changes with message:")
+            echo(commit_message)
 
     except Exception as e:
         err(f"Git commit failed: {e}")
