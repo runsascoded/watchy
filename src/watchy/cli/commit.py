@@ -1,12 +1,11 @@
 """Commit subcommand for watchy CLI."""
 
-import re
 from collections import defaultdict
 from functools import cache
 from pathlib import Path
 from sys import exit
 
-from click import argument, echo, option, pass_context
+from click import argument, echo, option
 from git import Repo
 from utz import proc
 
@@ -285,11 +284,11 @@ def format_commit_message(changes):
 
 
 @main.command
-@argument("refspec_str", required=False)
 @option("-n", "--dry-run", is_flag=True, help="Show what would be committed without actually committing")
-@option("--amend", is_flag=True, help="Amend the last commit with a new message based on its changes")
-@pass_context
-def commit(ctx, refspec_str: str, dry_run: bool, amend: bool):
+@option("--fixup", is_flag=True, help="Amend the last commit with a new message based on its changes")
+@option("-r", "--ref", help="Shorthand for analyzing a single commit (equivalent to REF^..REF)")
+@argument("refspec_str", required=False)
+def commit(refspec_str: str, dry_run: bool, fixup: bool, ref: str):
     """Generate and create a commit with a formatted message based on Git changes.
 
     By default, analyzes uncommitted changes from 'watchy stars' and 'watchy follows' commands.
@@ -305,20 +304,28 @@ def commit(ctx, refspec_str: str, dry_run: bool, amend: bool):
     - 📂 New repositories being tracked
 
     Use --dry-run to preview the commit message without committing.
-    Use --amend to rewrite the last commit's message based on its changes.
+    Use --fixup to rewrite the last commit's message based on its changes.
+    Use -r/--ref REF as shorthand for analyzing a single commit (REF^..REF).
     """
     # Check if we're in a git repository
     if not proc.check("git", "rev-parse", "--git-dir"):
         err("Not in a git repository")
         exit(1)
 
-    # Handle --amend option
-    if amend:
-        if refspec_str:
-            err("Cannot use --amend with refspec argument")
-            exit(1)
-        # For amend, analyze the HEAD commit
+    # Validate conflicting options
+    if sum(bool(x) for x in [refspec_str, fixup, ref]) > 1:
+        err("Cannot use multiple commit specification options together")
+        exit(1)
+
+    # Handle --fixup option
+    if fixup:
+        # For fixup, analyze the HEAD commit
         refspec_str = "HEAD"
+
+    # Handle -r/--ref option
+    if ref:
+        # Convert single ref to range: REF^..REF
+        refspec_str = f"{ref}^..{ref}"
 
     # Parse the git changes
     changes = parse_git_changes(refspec_str)
@@ -329,7 +336,7 @@ def commit(ctx, refspec_str: str, dry_run: bool, amend: bool):
     # Generate commit message
     commit_message = format_commit_message(changes)
 
-    if (refspec_str and not amend) or dry_run:
+    if (refspec_str and not fixup) or dry_run:
         if refspec_str:
             echo(f"Commit message for {refspec_str}:")
         else:
@@ -338,18 +345,18 @@ def commit(ctx, refspec_str: str, dry_run: bool, amend: bool):
         echo(commit_message)
         echo("=" * 50)
 
-        # If analyzing specific commits (but not amending), don't actually commit
-        if refspec_str and not amend:
+        # If analyzing specific commits (but not fixing up), don't actually commit
+        if refspec_str and not fixup:
             return
         elif dry_run:
             return
 
-    # Handle amend vs normal commit differently
+    # Handle fixup vs normal commit differently
     try:
-        if amend:
-            # For amend, just rewrite the commit message
+        if fixup:
+            # For fixup, just rewrite the commit message
             proc.run("git", "commit", "--amend", "-m", commit_message)
-            echo(f"Amended commit with new message:")
+            echo(f"Fixed up commit with new message:")
             echo(commit_message)
         else:
             # Check if there are any changes to commit

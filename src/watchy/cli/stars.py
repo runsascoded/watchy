@@ -11,9 +11,9 @@ from ..storage import save_logins_to_txt, print_logins_limited
 
 
 @main.command
-@argument("targets", nargs=-1, required=True)
-@option("-s", "--sleep-s", default=0.1, help="Sleep seconds between repo fetches (default: 0.1)")
 @pass_context
+@option("-s", "--sleep-s", default=0.1, help="Sleep seconds between repo fetches (default: 0.1)")
+@argument("targets", nargs=-1, required=True)
 def stars(ctx, targets: tuple[str, ...], sleep_s: float):
     """Fetch stargazers for repositories or all repositories of users/orgs.
 

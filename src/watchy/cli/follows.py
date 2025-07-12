@@ -10,8 +10,8 @@ from ..storage import save_logins_to_txt, print_logins_limited
 
 
 @main.command
-@argument("targets", nargs=-1, required=True)
 @pass_context
+@argument("targets", nargs=-1, required=True)
 def follows(ctx, targets: tuple[str, ...]):
     """Fetch followers for users or organizations.
 
