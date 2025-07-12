@@ -24,6 +24,7 @@ dependencies = [
     "requests",
     "click",
     "utz",
+    "GitPython",
 ]
 
 [project.optional-dependencies]
