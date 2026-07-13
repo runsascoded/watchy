@@ -1,0 +1,22 @@
+name = "watchy"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+
+[triggers]
+crons = ["0 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "watchy"
+database_id = "PLACEHOLDER"  # filled in after `wrangler d1 create watchy`
+
+[dev]
+port = 4200
+
+[vars]
+TARGETS_JSON = '{"stars":["runsascoded","ryan-williams","hudcostreets","bikejc","embankmentjc","neighbor-ryan","Open-Athena"],"follows":["runsascoded","ryan-williams","hudcostreets","bikejc","embankmentjc","neighbor-ryan","Open-Athena"]}'
+# UTC hour of the daily full sweep (bypasses the count-delta gate)
+FULL_SWEEP_HOUR = "8"
+
+[observability]
+enabled = true

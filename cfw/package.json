@@ -1,0 +1,16 @@
+{
+  "name": "watchy-cfw",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "migrate": "wrangler d1 migrations apply watchy --remote",
+    "migrate:local": "wrangler d1 migrations apply watchy --local"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260601.0",
+    "typescript": "^5.8.0",
+    "wrangler": "^4.0.0"
+  }
+}
