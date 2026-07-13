@@ -18,8 +18,8 @@ async function runCollection(env: Env, fullSweep: boolean): Promise<CollectResul
   }
 
   await env.DB
-    .prepare('UPDATE runs SET finished_at = ?, ok = ?, n_events = ?, error = ? WHERE id = ?')
-    .bind(new Date().toISOString(), result.ok ? 1 : 0, result.nEvents, result.error ?? null, runId)
+    .prepare('UPDATE runs SET finished_at = ?, ok = ?, n_events = ?, error = ?, full_sweep = ?, n_repos = ?, n_skipped = ? WHERE id = ?')
+    .bind(new Date().toISOString(), result.ok ? 1 : 0, result.nEvents, result.error ?? null, fullSweep ? 1 : 0, result.reposFetched, result.skipped.length, runId)
     .run()
 
   const alerted = await maybeAlert(env, runId, result.ok, result.error)
@@ -33,7 +33,11 @@ async function runCollection(env: Env, fullSweep: boolean): Promise<CollectResul
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data, null, 2) + '\n', {
     status,
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      // Dev FE (localhost:4199) is cross-origin; data is public pending the CF Access decision
+      'access-control-allow-origin': '*',
+    },
   })
 }
 
@@ -53,19 +57,20 @@ async function apiEvents(url: URL, env: Env): Promise<Response> {
   const target = url.searchParams.get('target')
   const kind = url.searchParams.get('kind')
   const login = url.searchParams.get('login')
-  const before = url.searchParams.get('before')
   if (target) { wheres.push('target = ?'); binds.push(target) }
   if (kind) {
     if (!EVENT_KINDS.includes(kind)) return json({ error: `kind must be one of ${EVENT_KINDS.join(', ')}` }, 400)
     wheres.push('kind = ?'); binds.push(kind)
   }
   if (login) { wheres.push('login LIKE ?'); binds.push(`%${login}%`) }
-  if (before) { wheres.push('id < ?'); binds.push(parseInt(before)) }
   const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '100'), 500)
+  const offset = parseInt(url.searchParams.get('offset') ?? '0')
   const where = wheres.length ? `WHERE ${wheres.join(' AND ')}` : ''
+  // Event-time order, not insertion order: bootstrap star events carry starred_at
+  // timestamps spanning years, so id-order would clump them at the end
   const { results } = await env.DB
-    .prepare(`SELECT id, ts, kind, target, uid, login, source, sha FROM events ${where} ORDER BY id DESC LIMIT ?`)
-    .bind(...binds, limit)
+    .prepare(`SELECT id, ts, kind, target, uid, login, source, sha FROM events ${where} ORDER BY ts DESC, id DESC LIMIT ? OFFSET ?`)
+    .bind(...binds, limit, offset)
     .all()
   return json({ events: results })
 }
@@ -86,6 +91,32 @@ async function apiCounts(url: URL, env: Env): Promise<Response> {
     .bind(target)
     .all()
   return json({ target, counts: results })
+}
+
+/** One-round-trip pipeline snapshot for the FE /health page (ctbk pattern). */
+async function apiHealth(env: Env): Promise<Response> {
+  const [runs, eventCounts, latestEvent, starState, followState] = await env.DB.batch([
+    env.DB.prepare('SELECT id, started_at, finished_at, ok, n_events, error, alerted, full_sweep, n_repos, n_skipped FROM runs ORDER BY id DESC LIMIT 20'),
+    env.DB.prepare('SELECT source, kind, count(*) AS count FROM events GROUP BY source, kind ORDER BY source, kind'),
+    env.DB.prepare('SELECT ts, kind, target, login FROM events ORDER BY id DESC LIMIT 1'),
+    env.DB.prepare('SELECT count(*) AS stars, count(DISTINCT repo) AS repos FROM stars'),
+    env.DB.prepare('SELECT count(*) AS follows, count(DISTINCT target) AS targets FROM follows'),
+  ])
+  const runRows = runs.results as Array<{ ok: number | null }>
+  const lastOk = runRows.find(r => r.ok === 1) ?? null
+  let consecutiveFailures = 0
+  for (const r of runRows) {
+    if (r.ok === 1) break
+    if (r.ok === 0) consecutiveFailures++
+  }
+  return json({
+    now: new Date().toISOString(),
+    lastOk,
+    consecutiveFailures,
+    runs: runs.results,
+    events: { counts: eventCounts.results, latest: latestEvent.results[0] ?? null },
+    state: { ...(starState.results[0] as object), ...(followState.results[0] as object) },
+  })
 }
 
 async function apiStatus(env: Env): Promise<Response> {
@@ -117,6 +148,7 @@ export default {
     if (path === '/api/targets') return apiTargets(env)
     if (path === '/api/counts') return apiCounts(url, env)
     if (path === '/api/status') return apiStatus(env)
+    if (path === '/api/health') return apiHealth(env)
 
     if (path === '/check') {
       const denied = keyGate(req, env)

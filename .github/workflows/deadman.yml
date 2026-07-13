@@ -1,0 +1,24 @@
+name: watchy worker dead-man's switch
+# The CFW cron can't alert if it stops firing entirely (deploy issue, account
+# problem). GHA is unreliable as a pipeline but fine as a daily freshness probe —
+# and it emails on failure for free.
+on:
+  schedule:
+    - cron: '30 12 * * *'
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Assert last successful worker run < 3h old
+      run: |
+        status=$(curl -sSf https://watchy.ryan-0dc.workers.dev/api/status)
+        last_ok=$(echo "$status" | jq -r '.lastOk.finished_at // empty')
+        if [ -z "$last_ok" ]; then
+          echo "No successful run recorded"; exit 1
+        fi
+        age_s=$(( $(date +%s) - $(date -d "$last_ok" +%s) ))
+        echo "Last OK run: $last_ok (${age_s}s ago)"
+        if [ "$age_s" -gt 10800 ]; then
+          echo "Stale: last successful run > 3h ago"; exit 1
+        fi

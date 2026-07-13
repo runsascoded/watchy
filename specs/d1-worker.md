@@ -228,11 +228,29 @@ events DB.
      duplicated by git events in the overlap window.
 2. **Phase 2 — alerting**: Pushover wiring (worker code ✅; secrets pending — reuse
    awair-monitor's app or create a "watchy" one), `/api/status` ✅, dead-man GHA ✅
-   (`.watchy` repo, daily, fails unless `lastOk` < 3h old).
-3. **Phase 3 — FE**: event feed + target pages, watchy.rbw.sh domain, CF Access.
-4. **Phase 4 — decommission**: stop the `.watchy` GHA cron (repo stays as frozen
-   archive + backfill source). Optional: periodic `events → parquet` export to R2 for
-   pandas analysis, *as export, not ledger*.
+   (daily, fails unless `lastOk` < 3h old; lives in **this** repo, not `.watchy` —
+   scheduled workflows are auto-disabled after 60d of repo inactivity, and `.watchy`
+   goes quiet post-decommission).
+3. **Phase 3 — FE**: ✅ (2026-07-13) `www/` Vite+React+SASS app: `/` event feed
+   (day-grouped, kind/target/login filters), `/health` pipeline snapshot backed by
+   one-round-trip `/api/health` (ctbk pattern). Served by the worker via `[assets]`
+   (SPA fallback, `run_worker_first` for API paths); dev: `pnpm dev` in `www/`
+   (port 4199, hits prod API by default; `VITE_API_BASE` overrides).
+   Remaining: watchy.rbw.sh custom domain + CF Access — **gate before (or with)
+   the domain**; the workers.dev URL already serves logins publicly.
+4. **Phase 4 — decommission** (after ~1wk parity, target ~2026-07-20):
+   - [ ] parity check: `.watchy` GHA commit diffs ≡ `source='live'` events over the
+     parallel window (`watchy backfill -S -u <bootstrap-ts>`-style walk vs
+     `watchy sql` query)
+   - [ ] remove the `schedule:` trigger from `.watchy` `update.yml` (keep
+     `workflow_dispatch` for manual snapshots); final `watchy commit`
+   - [ ] delete the `WATCHY_TOKEN` secret from `ryan-williams/.watchy` (worker has
+     its own copy)
+   - [ ] `.watchy` README: mark as frozen archive, link watchy.rbw.sh / the worker
+   - [ ] optional: archive the repo (Settings → read-only; preserves history,
+     kills all workflows — deadman already moved out)
+   - Optional: periodic `events → parquet` export to R2 for pandas analysis,
+     *as export, not ledger*.
 
 ## Non-goals (v1)
 
