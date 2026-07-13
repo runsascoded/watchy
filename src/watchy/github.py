@@ -64,3 +64,11 @@ class GitHubClient:
         url = f"https://api.github.com/users/{user}/repos"
         params = {"per_page": 100, "type": "owner"}
         yield from self._paginate(url, params)
+
+    def get_user(self, login: str) -> Optional[Dict[str, Any]]:
+        """Get a user by login; None if the account no longer exists."""
+        response = self.session.get(f"https://api.github.com/users/{login}")
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        return response.json()
