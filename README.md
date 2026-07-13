@@ -6,6 +6,15 @@ Python library and CLI tool for fetching and tracking GitHub stargazers and foll
 
 See [ryan-williams/.watchy] for [an example daily GHA][GHA] that polls for stargazers and followers of a few orgs and repos.
 
+**Note**: as of [GitHub's 2026-06-30 access restrictions][gh-changelog], the stargazers
+API requires a token belonging to an admin or collaborator of each repo; `watchy stars`
+can no longer fetch arbitrary repos' stargazers.
+
+[`cfw/`](cfw/) contains a Cloudflare Worker that polls hourly and appends
+star/unstar/follow/unfollow **events** to a D1 database (see
+[`specs/d1-worker.md`](specs/d1-worker.md)); `watchy backfill` seeds it from a
+`.watchy`-style git history, and `watchy sql` queries it.
+
 ## Features
 
 - Fetch stargazers for GitHub repositories
@@ -110,6 +119,27 @@ watchy stars owner/repo  # Automatically uses gh token
 ```bash
 # Add delay between requests when fetching multiple repos
 watchy stars myorg -s 1.0  # 1 second delay between repos
+```
+
+#### Backfill events from git history
+
+Derive star/unstar/follow/unfollow events from a `.watchy`-style data repo's
+commit history, for import into the [worker](cfw/)'s D1 database:
+
+```bash
+watchy backfill > backfill.sql        # walks $WATCHY_DIR (default .watchy)
+watchy sql -f backfill.sql            # import
+```
+
+See `watchy backfill --help` and [`specs/d1-worker.md`](specs/d1-worker.md) for
+re-run semantics (`-u/--until`, `-S/--no-seed-state`) and the stars vs. follows
+event-emission policy.
+
+#### Query the worker's D1 database
+
+```bash
+watchy sql "SELECT kind, count(*) FROM events GROUP BY kind"   # rows out as JSONL
+watchy sql -l ...                                              # local dev db
 ```
 
 ### Python API
