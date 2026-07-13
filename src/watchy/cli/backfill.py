@@ -17,13 +17,17 @@ from ..paths import paths
 @option("-C", "--repo-dir", default=None, help="Path to the .watchy data clone (default: $WATCHY_DIR / .watchy)")
 @option("-f", "--fmt", type=Choice(["sql", "jsonl"]), default="sql", help="Output format (default: sql, importable via `wrangler d1 execute watchy --remote --file`)")
 @option("-o", "--output", default=None, help="Output path (default: stdout)")
-@option("-u", "--resolve-uids", is_flag=True, help="Also resolve uids for event logins (1 API call per distinct login); follows-state logins are always resolved")
+@option("-S", "--no-seed-state", is_flag=True, help="Skip the follows state-table seed (use on re-runs, once the live worker owns state)")
+@option("-u", "--until", default=None, help="Exclude commits after this ISO timestamp (pass the worker's first-run time so re-runs can't duplicate live events)")
+@option("-U", "--resolve-uids", is_flag=True, help="Also resolve uids for event logins (1 API call per distinct login); follows-state logins are always resolved")
 @option("-x", "--emit-open", multiple=True, help="owner/repo whose open star intervals should be emitted (stale files whose repo the live worker can't fetch); repeatable")
 def backfill(
     ctx,
     repo_dir: str,
     fmt: str,
     output: Optional[str],
+    no_seed_state: bool,
+    until: Optional[str],
     resolve_uids: bool,
     emit_open: tuple[str, ...],
 ):
@@ -47,7 +51,8 @@ def backfill(
     client = ctx.obj["client"]
     if repo_dir is None:
         repo_dir = str(paths.root)
-    events, head_follows = compute_backfill(repo_dir, emit_open=emit_open)
+    events, head_follows = compute_backfill(repo_dir, emit_open=emit_open, until=until)
+    seed_follows = None if no_seed_state else head_follows
     err(f"{len(events)} events, {sum(len(v) for v in head_follows.values())} HEAD follows across {len(head_follows)} targets")
 
     uid_cache: dict[str, Optional[int]] = {}
@@ -66,11 +71,11 @@ def backfill(
 
     if fmt == "jsonl":
         lines = [json.dumps(asdict(e)) for e in events]
-        for target in sorted(head_follows):
-            lines.append(json.dumps({"state": "follows", "target": target, "logins": sorted(head_follows[target])}))
+        for target in sorted(seed_follows or {}):
+            lines.append(json.dumps({"state": "follows", "target": target, "logins": sorted(seed_follows[target])}))
         out = "\n".join(lines) + "\n"
     else:
-        stmts = to_sql(events, head_follows, resolve_uid)
+        stmts = to_sql(events, seed_follows, resolve_uid)
         out = "\n".join(stmts) + "\n"
 
     if output:

@@ -183,29 +183,52 @@ loosening later is easier than unpublishing.
 
 ## Backfill (`watchy backfill`, py)
 
-New subcommand in the existing CLI (house rule: CLI subcommand over ad-hoc script):
+Subcommand in the existing CLI (house rule: CLI subcommand over ad-hoc script):
 
 ```
-watchy backfill [-C <.watchy-clone>] [-o events.jsonl|csv] [--d1 <db-name>]
+watchy backfill [-C <.watchy-clone>] [-f sql|jsonl] [-o <path>] [-S] [-u <iso-ts>] [-U] [-x <owner/repo>]...
 ```
 
-- Walk `ryan-williams/.watchy` history (166 commits, 2025-07-06 → present; the
-  `get_crash_log` commit-walking pattern from `nj-crashes/njsp/crash_log.py`, minus the
-  XML parsing — snapshots are `.txt` login lists).
-- Diff consecutive snapshots per file → events: `ts` = commit authored date (daily
-  resolution), `source='git'`, `sha` = short sha. Login→uid resolution via one
-  `GET /users/{login}` per distinct login (~cacheable, few hundred); logins that 404
-  (deleted accounts) keep `uid = -1` sentinel… **or** simpler: allow `uid NULL` for
-  git-sourced events. TBD at impl time.
-- Emit JSONL/CSV; import via `wrangler d1 execute --file` (small enough for one shot).
-- Seed `stars`/`follows` state tables from the HEAD snapshot, then flip the worker on.
+- Walks `.watchy` history (`Repo.iter_commits`, chronological), diffing consecutive
+  `github/{stars,follows}/**.txt` snapshots.
+- **Stars**: emits `unstar` for every removal, `star` for *closed* intervals only —
+  open intervals (still-starred at HEAD) are left to the worker's first live sweep,
+  which gets true `starred_at` timestamps (observed span: 2011→2026, far richer than
+  git's daily resolution). `-x/--emit-open <owner/repo>` overrides per-repo, for stale
+  files whose repos the live worker can't fetch.
+- **Follows**: emits every change (no API timestamp source to defer to), and seeds the
+  `follows` state table from the HEAD snapshot (uid-resolved via `GET /users/{login}`;
+  unresolvable logins are skipped — deleted accounts won't appear in live fetches
+  either). Event `uid`s stay NULL unless `-U/--resolve-uids`.
+- **Re-runs**: SQL import is idempotent (`DELETE FROM events WHERE source='git'` first).
+  `-u/--until <iso-ts>` (pass the worker's first-run time) excludes later commits so git
+  events can't duplicate live ones; `-S/--no-seed-state` skips the follows seed (and its
+  `DELETE FROM follows`, which would wipe live-owned state).
+- Import via `watchy sql -f backfill.sql` (below). **Order matters**: import (with state
+  seed) before the worker's first run, else current followers re-emit as spurious
+  live events at observation time.
+
+## `watchy sql` (py)
+
+`watchy sql [-d <db>] [-l] [-f <file> | <sql>]` — wraps `wrangler d1 execute watchy
+--remote --json`, strips wrangler's progress-line preamble, emits result rows as
+pipeable JSONL. Used for backfill import, parity checks, and ad-hoc queries of the
+events DB.
 
 ## Rollout
 
-1. **Phase 1 — pipeline**: schema migrations, worker collect path, backfill, deploy.
-   Run in parallel with the existing `.watchy` GHA for ~1wk; parity-check daily
-   (`.watchy` commit diffs ≡ `source='live'` events for the same window).
-2. **Phase 2 — alerting**: Pushover wiring, `/api/status`, dead-man GHA.
+1. **Phase 1 — pipeline** ✅ (2026-07-12): schema migrations, worker collect path,
+   backfill, deploy. D1 db `0ea16a24-…`; worker at `watchy.ryan-0dc.workers.dev`;
+   first full sweep: 430 repos, 225 bootstrap star events (starred_at 2011→2026),
+   484 events total after backfill import + overlap dedupe. `.watchy` GHA continues
+   in parallel; parity-check daily (`.watchy` commit diffs ≡ `source='live'` events).
+   - Deploy-window overlap handling (learned the hard way — an unstar landed between
+     backfill-clone and bootstrap and was invisible to both): re-run backfill with
+     `-S -u <bootstrap-ts>` from an updated clone, then delete live `follow` events
+     duplicated by git events in the overlap window.
+2. **Phase 2 — alerting**: Pushover wiring (worker code ✅; secrets pending — reuse
+   awair-monitor's app or create a "watchy" one), `/api/status` ✅, dead-man GHA ✅
+   (`.watchy` repo, daily, fails unless `lastOk` < 3h old).
 3. **Phase 3 — FE**: event feed + target pages, watchy.rbw.sh domain, CF Access.
 4. **Phase 4 — decommission**: stop the `.watchy` GHA cron (repo stays as frozen
    archive + backfill source). Optional: periodic `events → parquet` export to R2 for

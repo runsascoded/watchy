@@ -8,7 +8,7 @@ crons = ["0 * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "watchy"
-database_id = "PLACEHOLDER"  # filled in after `wrangler d1 create watchy`
+database_id = "0ea16a24-84b7-4ccc-908a-5876a33aef33"
 
 [dev]
 port = 4200

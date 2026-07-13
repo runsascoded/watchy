@@ -78,15 +78,24 @@ def txt_paths(commit: Commit) -> set[str]:
 def backfill(
     repo_dir: str,
     emit_open: tuple[str, ...] = (),
+    until: Optional[str] = None,
 ) -> tuple[list[Event], dict[str, set[str]]]:
     """Compute events from git history.
 
+    ``until`` (ISO timestamp) excludes commits after that point — pass the
+    worker's first-run time so re-runs against an updated clone can't emit git
+    events that duplicate live ones.
+
     Returns ``(events, head_follows)`` where ``head_follows`` maps each follows
-    target to its login set at HEAD (for state seeding). Events are ordered
-    chronologically (by commit, then stars before follows within a commit).
+    target to its login set at the last included commit (for state seeding).
+    Events are ordered chronologically.
     """
     repo = Repo(repo_dir)
     commits = list(repo.iter_commits("HEAD"))[::-1]
+    if until is not None:
+        commits = [c for c in commits if commit_ts(c) <= until]
+        if not commits:
+            raise ValueError(f"No commits at or before {until}")
 
     # stars: target -> login -> list[Interval] (last may be open)
     star_intervals: dict[str, dict[str, list[Interval]]] = {}
@@ -150,16 +159,18 @@ def sql_quote(s: str) -> str:
 
 def to_sql(
     events: list[Event],
-    head_follows: dict[str, set[str]],
+    head_follows: Optional[dict[str, set[str]]],
     resolve_uid: Callable[[str], Optional[int]],
     chunk_size: int = 500,
 ) -> list[str]:
     """Render events + follows-state seed as SQL statements.
 
-    Idempotent on re-import: git-sourced events and the follows state table are
-    cleared before inserting. ``resolve_uid`` maps login -> uid (None if the
-    account no longer resolves; those logins are skipped in state seeding, since
-    the live worker keys state by uid).
+    Idempotent on re-import: git-sourced events (and, when seeding, the follows
+    state table) are cleared before inserting. ``head_follows=None`` skips state
+    seeding entirely — required on re-runs once the live worker owns state, since
+    a ``DELETE FROM follows`` would wipe it. ``resolve_uid`` maps login -> uid
+    (None if the account no longer resolves; those logins are skipped in state
+    seeding, since the live worker keys state by uid).
     """
     stmts = ["DELETE FROM events WHERE source = 'git';"]
     for i in range(0, len(events), chunk_size):
@@ -172,6 +183,9 @@ def to_sql(
             "INSERT INTO events (ts, kind, target, uid, login, source, sha) VALUES\n"
             + ",\n".join(rows) + ";"
         )
+
+    if head_follows is None:
+        return stmts
 
     stmts.append("DELETE FROM follows;")
     state_rows = []

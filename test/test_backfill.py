@@ -119,6 +119,33 @@ def test_to_sql(data_repo):
     ]
 
 
+def test_backfill_until(data_repo):
+    repo, (sha1, sha2, sha3) = data_repo
+    events, head_follows = backfill(repo.working_dir, until=T2)
+    # c3 excluded: alice's removal at c2 still closes her interval; her c3
+    # re-add, carol's c3 unfollow, and o/r2 never happened. head_follows
+    # reflects c2 (the last included commit).
+    assert events == [
+        Event(T1, "follow", "u", "carol", sha1),
+        Event(T1, "star", "o/r", "alice", sha1),
+        Event(T2, "follow", "u", "erin", sha2),
+        Event(T2, "unstar", "o/r", "alice", sha2),
+    ]
+    assert head_follows == {"u": {"carol", "erin"}}
+
+
+def test_to_sql_no_seed_state(data_repo):
+    repo, (sha1, _, _) = data_repo
+    events, _ = backfill(repo.working_dir, until=T1)
+    stmts = to_sql(events, None, resolve_uid=lambda login: None)
+    # No DELETE/INSERT on follows — a re-run must not wipe live-owned state
+    assert stmts == [
+        "DELETE FROM events WHERE source = 'git';",
+        "INSERT INTO events (ts, kind, target, uid, login, source, sha) VALUES\n"
+        f"('{T1}', 'follow', 'u', NULL, 'carol', 'git', '{sha1}');",
+    ]
+
+
 def test_to_sql_skips_unresolved_state_logins(data_repo):
     repo, _ = data_repo
     _, head_follows = backfill(repo.working_dir)
