@@ -60,6 +60,27 @@ def build_day_threads(events: list[dict], match: tuple[str, ...]) -> list[DayThr
     ]
 
 
+def truncate_days(days: list[DayThread], max_msgs: int) -> list[DayThread]:
+    """Cap total desired messages (OPs + lines) across days, oldest-first.
+
+    The last included day may be truncated mid-thread — safe because threads are
+    append-only: the next un-capped run completes it. A day is dropped entirely
+    rather than posting a bare OP with no events.
+    """
+    out: list[DayThread] = []
+    budget = max_msgs
+    for day in days:
+        if budget < 2:
+            break
+        if len(day.messages) <= budget:
+            out.append(day)
+            budget -= len(day.messages)
+        else:
+            out.append(DayThread(date=day.date, messages=day.messages[:budget]))
+            budget = 0
+    return out
+
+
 def sync_days(
     client,
     days: list[DayThread],
@@ -89,6 +110,44 @@ def sync_days(
             log(f"{day.date}: {posted} posted, {skipped} skipped" + (" (dry-run)" if dry_run else ""))
         results.append((day, result))
     return results
+
+
+def delete_day_threads(
+    client,
+    targets: dict[str, str],
+    dry_run: bool = False,
+    force: bool = False,
+    pace: float = 0.4,
+    log: Optional[Callable[[str], None]] = None,
+    sleep: Callable[[float], None] = None,
+) -> None:
+    """Delete day-threads (replies newest-first, then the OP).
+
+    Only the bot's own (``editable``) messages are deleted. If foreign replies
+    remain, the OP is kept (they'd be orphaned) unless ``force``.
+    """
+    if sleep is None:
+        from time import sleep as sleep_
+        sleep = sleep_
+    for date, ts in sorted(targets.items()):
+        msgs = client.list_messages(ts)  # OP first, then replies
+        op, replies = msgs[0], msgs[1:]
+        foreign = [m for m in replies if not m.editable]
+        for m in reversed([m for m in replies if m.editable]):
+            if log:
+                log(f"{date}: {'would delete' if dry_run else 'deleting'} reply {m.id}: {m.content}")
+            if not dry_run:
+                client.delete(m.id)
+                sleep(pace)
+        if foreign and not force:
+            if log:
+                log(f"{date}: keeping OP {op.id} ({len(foreign)} non-bot replies would be orphaned; -f to force)")
+            continue
+        if log:
+            log(f"{date}: {'would delete' if dry_run else 'deleting'} OP {op.id}: {op.content}")
+        if not dry_run:
+            client.delete(op.id, orphans_ok=force)
+            sleep(pace)
 
 
 def fetch_day_threads(client, channel: str, max_recs: int = 1000) -> dict[str, str]:

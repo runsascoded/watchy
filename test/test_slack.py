@@ -1,8 +1,8 @@
 """Tests for the declarative Slack sync (src/watchy/slack.py)."""
 
-from thrds import Action, ActionType, SyncResult, Thread
+from thrds import Action, ActionType, Message, SyncResult, Thread
 
-from watchy.slack import DayThread, build_day_threads, matches, op_metadata, render_event, sync_days
+from watchy.slack import DayThread, build_day_threads, delete_day_threads, matches, op_metadata, render_event, sync_days, truncate_days
 
 
 def ev(id: int, ts: str, kind: str, target: str, login: str) -> dict:
@@ -108,4 +108,98 @@ def test_sync_days_threads_ts_metadata_and_log():
     assert [(day.date, result.thread_id) for day, result in results] == [
         ("2026-07-27", "1721.001"),
         ("2026-07-28", "ts-new"),
+    ]
+
+
+DAYS = [
+    DayThread(date="2026-07-22", messages=["op22", "a", "b"]),
+    DayThread(date="2026-07-23", messages=["op23", "c", "d", "e"]),
+    DayThread(date="2026-07-24", messages=["op24", "f"]),
+]
+
+
+def test_truncate_days_exact_boundary():
+    assert truncate_days(DAYS, 7) == [
+        DayThread(date="2026-07-22", messages=["op22", "a", "b"]),
+        DayThread(date="2026-07-23", messages=["op23", "c", "d", "e"]),
+    ]
+
+
+def test_truncate_days_mid_day():
+    assert truncate_days(DAYS, 5) == [
+        DayThread(date="2026-07-22", messages=["op22", "a", "b"]),
+        DayThread(date="2026-07-23", messages=["op23", "c"]),
+    ]
+
+
+def test_truncate_days_drops_bare_op():
+    # budget 4 leaves 1 slot after day 1 — a bare OP is useless, so day 2 is dropped
+    assert truncate_days(DAYS, 4) == [
+        DayThread(date="2026-07-22", messages=["op22", "a", "b"]),
+    ]
+
+
+def test_truncate_days_no_cap_needed():
+    assert truncate_days(DAYS, 100) == DAYS
+
+
+class FakeDeleteClient:
+    """Thread listing + delete recorder for delete_day_threads tests."""
+
+    def __init__(self, threads: dict):
+        self.threads = threads
+        self.deleted = []
+
+    def list_messages(self, thread_id):
+        return self.threads[thread_id]
+
+    def delete(self, message_id, orphans_ok=False):
+        self.deleted.append((message_id, orphans_ok))
+
+
+def test_delete_day_threads_replies_newest_first_then_op():
+    client = FakeDeleteClient({
+        "1.0": [Message(id="1.0", content="op"), Message(id="1.1", content="a"), Message(id="1.2", content="b")],
+    })
+    logs = []
+    delete_day_threads(client, {"2026-07-22": "1.0"}, log=logs.append, sleep=lambda s: None)
+    assert client.deleted == [("1.2", False), ("1.1", False), ("1.0", False)]
+    assert logs == [
+        "2026-07-22: deleting reply 1.2: b",
+        "2026-07-22: deleting reply 1.1: a",
+        "2026-07-22: deleting OP 1.0: op",
+    ]
+
+
+def test_delete_day_threads_keeps_op_over_foreign_replies():
+    client = FakeDeleteClient({
+        "1.0": [Message(id="1.0", content="op"), Message(id="1.1", content="a"), Message(id="1.2", content="human!", editable=False)],
+    })
+    logs = []
+    delete_day_threads(client, {"2026-07-22": "1.0"}, log=logs.append, sleep=lambda s: None)
+    assert client.deleted == [("1.1", False)]
+    assert logs == [
+        "2026-07-22: deleting reply 1.1: a",
+        "2026-07-22: keeping OP 1.0 (1 non-bot replies would be orphaned; -f to force)",
+    ]
+
+
+def test_delete_day_threads_force_orphans():
+    client = FakeDeleteClient({
+        "1.0": [Message(id="1.0", content="op"), Message(id="1.1", content="human!", editable=False)],
+    })
+    delete_day_threads(client, {"2026-07-22": "1.0"}, force=True, sleep=lambda s: None)
+    assert client.deleted == [("1.0", True)]
+
+
+def test_delete_day_threads_dry_run():
+    client = FakeDeleteClient({
+        "1.0": [Message(id="1.0", content="op"), Message(id="1.1", content="a")],
+    })
+    logs = []
+    delete_day_threads(client, {"2026-07-22": "1.0"}, dry_run=True, log=logs.append, sleep=lambda s: None)
+    assert client.deleted == []
+    assert logs == [
+        "2026-07-22: would delete reply 1.1: a",
+        "2026-07-22: would delete OP 1.0: op",
     ]
