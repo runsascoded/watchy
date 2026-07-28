@@ -23,6 +23,7 @@ classifiers = [
 dependencies = [
     "requests",
     "click",
+    "thrds>=0.4.0",
     "utz",
     "GitPython",
 ]

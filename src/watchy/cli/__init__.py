@@ -25,7 +25,7 @@ def main(ctx, token: Optional[str]):
 
 
 # Import subcommands to register them with the main group
-from . import backfill, commit, follows, sql, stars  # noqa: E402
+from . import backfill, commit, follows, slack, sql, stars  # noqa: E402
 
 
 if __name__ == "__main__":
