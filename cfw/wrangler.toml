@@ -1,6 +1,9 @@
 name = "watchy"
 main = "src/index.ts"
 compatibility_date = "2026-06-01"
+routes = [
+  { pattern = "watchy.rbw.sh", custom_domain = true },
+]
 
 [triggers]
 crons = ["0 * * * *"]

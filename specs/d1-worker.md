@@ -238,15 +238,30 @@ events DB.
    (port 4199, hits prod API by default; `VITE_API_BASE` overrides).
    Remaining: watchy.rbw.sh custom domain + CF Access — **gate before (or with)
    the domain**; the workers.dev URL already serves logins publicly.
-4. **Phase 4 — decommission** (after ~1wk parity, target ~2026-07-20):
-   - [ ] parity check: `.watchy` GHA commit diffs ≡ `source='live'` events over the
-     parallel window (`watchy backfill -S -u <bootstrap-ts>`-style walk vs
-     `watchy sql` query)
-   - [ ] remove the `schedule:` trigger from `.watchy` `update.yml` (keep
-     `workflow_dispatch` for manual snapshots); final `watchy commit`
-   - [ ] delete the `WATCHY_TOKEN` secret from `ryan-williams/.watchy` (worker has
+   2026-07-28: `routes = [{ pattern = "watchy.rbw.sh", custom_domain = true }]`
+   added to `wrangler.toml`, but deploy is blocked: wrangler's OAuth session is now
+   the openathena.ai account, and the worker lives in the personal account
+   (`0dcad565…`). Fix: `wrangler login` back to personal, or set
+   `CLOUDFLARE_API_TOKEN` (personal-account token) and redeploy.
+4. **Phase 4 — decommission**: ✅ (2026-07-28)
+   - [x] parity check (state-level, via public API — `tmp/parity.py`): `.watchy` HEAD
+     (last data commit f3ac1db, 2026-07-21) + post-cutoff `source='live'` events vs
+     current D1 state. Follows: exact (7/7 targets). Stars: exact on all 440
+     commonly-visible repos; 7 diffs, all old-pipeline blind spots:
+     - 5 stale `.watchy` files for repos renamed/moved away (301s: `bolinas-dna`,
+       `thalas`, `tomat`, `TileDB-SOMA-ML`, `bash-markdown-fence`) — old pipeline
+       never deleted files for repos that vanished from the listing
+     - 2 private→public repos (`Open-Athena/{Kelp,mumwelt}`) the old pipeline never
+       saw; worker's count-gate caught the publicization and recorded true
+       (backdated) `starred_at` for collaborator stars
+     - (the old GHA's 07-24→07-28 failures were `runsascoded/jupyterlite-build`
+       stargazers 404ing — old code fetches every repo unconditionally; worker's
+       count-delta gate never touches 0-star repos)
+   - [x] removed the `schedule:` trigger from `.watchy` `update.yml` (kept
+     `workflow_dispatch`; needs `WATCHY_TOKEN` re-set to actually run) — 0a3afaf
+   - [x] deleted the `WATCHY_TOKEN` secret from `ryan-williams/.watchy` (worker has
      its own copy)
-   - [ ] `.watchy` README: mark as frozen archive, link watchy.rbw.sh / the worker
+   - [x] `.watchy` README: frozen-archive note linking the worker feed/health — 0a3afaf
    - [ ] optional: archive the repo (Settings → read-only; preserves history,
      kills all workflows — deadman already moved out)
    - Optional: periodic `events → parquet` export to R2 for pandas analysis,
