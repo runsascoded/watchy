@@ -262,8 +262,9 @@ events DB.
    - [x] deleted the `WATCHY_TOKEN` secret from `ryan-williams/.watchy` (worker has
      its own copy)
    - [x] `.watchy` README: frozen-archive note linking the worker feed/health — 0a3afaf
-   - [ ] optional: archive the repo (Settings → read-only; preserves history,
-     kills all workflows — deadman already moved out)
+   - [x] archived the repo (`gh repo archive`, 2026-07-28): read-only, history
+     preserved, all workflows (incl. the kept `workflow_dispatch`) disabled —
+     deadman already moved out; unarchive if a manual snapshot is ever wanted
    - Optional: periodic `events → parquet` export to R2 for pandas analysis,
      *as export, not ledger*.
 
