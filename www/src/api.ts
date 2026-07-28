@@ -1,8 +1,9 @@
-// Default to the prod worker so `pnpm dev` works without a local api (ctbk pattern).
-// Same-origin when served by the worker itself; override with VITE_API_BASE.
+// Same-origin only when served by the worker itself (workers.dev); everywhere
+// else — `pnpm dev`, the CFP deployment at watchy.rbw.sh — hit the prod worker
+// cross-origin (ctbk pattern). Override with VITE_API_BASE.
 export const API_BASE =
   import.meta.env.VITE_API_BASE ??
-  (location.port === '4199' ? 'https://watchy.ryan-0dc.workers.dev' : '')
+  (location.hostname.endsWith('.workers.dev') ? '' : 'https://watchy.ryan-0dc.workers.dev')
 
 export interface Event {
   id: number
