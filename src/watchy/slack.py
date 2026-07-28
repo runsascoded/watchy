@@ -13,11 +13,13 @@ from thrds import SyncResult, Thread
 
 DAY_EVENT_TYPE = "watchy_day"
 
+# Shortcodes, not literal emoji: Slack normalizes literals to shortcodes in stored
+# message text, so literals would make read-back never match desired (perma-EDIT).
 KIND_VERBS = {
-    "star": ("⭐️", "starred"),
-    "unstar": ("💔", "unstarred"),
-    "follow": ("📣", "followed"),
-    "unfollow": ("🔇", "unfollowed"),
+    "star": (":star:", "starred"),
+    "unstar": (":broken_heart:", "unstarred"),
+    "follow": (":mega:", "followed"),
+    "unfollow": (":mute:", "unfollowed"),
 }
 
 

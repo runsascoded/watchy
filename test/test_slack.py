@@ -11,16 +11,16 @@ def ev(id: int, ts: str, kind: str, target: str, login: str) -> dict:
 
 def test_render_event_kinds():
     assert render_event(ev(1, "2026-07-28T16:01:43Z", "star", "Open-Athena/Kelp", "postylem")) == (
-        "⭐️ <https://github.com/postylem|postylem> starred <https://github.com/Open-Athena/Kelp|Open-Athena/Kelp> 16:01Z"
+        ":star: <https://github.com/postylem|postylem> starred <https://github.com/Open-Athena/Kelp|Open-Athena/Kelp> 16:01Z"
     )
     assert render_event(ev(2, "2026-07-13T02:18:21Z", "unstar", "ryan-williams/git-helpers", "zhangkejiang")) == (
-        "💔 <https://github.com/zhangkejiang|zhangkejiang> unstarred <https://github.com/ryan-williams/git-helpers|ryan-williams/git-helpers> 02:18Z"
+        ":broken_heart: <https://github.com/zhangkejiang|zhangkejiang> unstarred <https://github.com/ryan-williams/git-helpers|ryan-williams/git-helpers> 02:18Z"
     )
     assert render_event(ev(3, "2026-07-24T01:00:28Z", "follow", "ryan-williams", "chrisipanaque")) == (
-        "📣 <https://github.com/chrisipanaque|chrisipanaque> followed <https://github.com/ryan-williams|ryan-williams> 01:00Z"
+        ":mega: <https://github.com/chrisipanaque|chrisipanaque> followed <https://github.com/ryan-williams|ryan-williams> 01:00Z"
     )
     assert render_event(ev(4, "2026-07-20T22:00:00Z", "unfollow", "Open-Athena", "electricmoss")) == (
-        "🔇 <https://github.com/electricmoss|electricmoss> unfollowed <https://github.com/Open-Athena|Open-Athena> 22:00Z"
+        ":mute: <https://github.com/electricmoss|electricmoss> unfollowed <https://github.com/Open-Athena|Open-Athena> 22:00Z"
     )
 
 
@@ -47,16 +47,16 @@ def test_build_day_threads_groups_filters_and_orders_by_id():
             date="2026-07-27",
             messages=[
                 ":calendar: *2026-07-27*",
-                "⭐️ <https://github.com/alxmrs|alxmrs> starred <https://github.com/Open-Athena/marin-dna|Open-Athena/marin-dna> 22:52Z",
-                "⭐️ <https://github.com/backdated|backdated> starred <https://github.com/marin-community/marin|marin-community/marin> 01:00Z",
+                ":star: <https://github.com/alxmrs|alxmrs> starred <https://github.com/Open-Athena/marin-dna|Open-Athena/marin-dna> 22:52Z",
+                ":star: <https://github.com/backdated|backdated> starred <https://github.com/marin-community/marin|marin-community/marin> 01:00Z",
             ],
         ),
         DayThread(
             date="2026-07-28",
             messages=[
                 ":calendar: *2026-07-28*",
-                "⭐️ <https://github.com/shepardxia|shepardxia> starred <https://github.com/Open-Athena/Kelp|Open-Athena/Kelp> 16:00Z",
-                "⭐️ <https://github.com/postylem|postylem> starred <https://github.com/Open-Athena/Kelp|Open-Athena/Kelp> 16:01Z",
+                ":star: <https://github.com/shepardxia|shepardxia> starred <https://github.com/Open-Athena/Kelp|Open-Athena/Kelp> 16:00Z",
+                ":star: <https://github.com/postylem|postylem> starred <https://github.com/Open-Athena/Kelp|Open-Athena/Kelp> 16:01Z",
             ],
         ),
     ]
