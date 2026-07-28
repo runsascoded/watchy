@@ -157,9 +157,16 @@ Simplified from awair's tier ladder (hourly cadence, not per-minute):
 ## Web app — watchy.rbw.sh
 
 Vite + TS + React + SASS in `www/`; dev port **4199**, wrangler dev **4200**
-(hash-derived). Built assets served by the worker via `[assets]` binding, SPA fallback;
-domain via `routes = [{ pattern = "watchy.rbw.sh", custom_domain = true }]` (zone
-`rbw.sh` already on the CF account — cf. air.rbw.sh).
+(hash-derived). Built assets served two ways from one `www/dist` build:
+- worker `[assets]` binding (SPA fallback) at watchy.ryan-0dc.workers.dev — same-origin API
+- **CFP project `watchy-www`** behind a Namecheap CNAME (`watchy` →
+  `watchy-www.pages.dev`) at **watchy.rbw.sh** — cross-origin API to the worker
+  (`API_BASE` picks same-origin only on `*.workers.dev`; `VITE_API_BASE` overrides)
+
+(Earlier drafts assumed `rbw.sh` was a CF zone — it isn't; DNS is at Namecheap, and
+all rbw.sh sites are CFP projects behind external CNAMEs. A Workers custom domain
+would have required moving the zone to CF; the CFP route matches the existing
+pattern and needed no DNS migration.)
 
 v1 views (TSQ for data fetching; use-kbd SpeedDial per house style):
 1. **Event feed** (home): reverse-chron, grouped by day — the at-a-glance replacement for
@@ -236,13 +243,15 @@ events DB.
    one-round-trip `/api/health` (ctbk pattern). Served by the worker via `[assets]`
    (SPA fallback, `run_worker_first` for API paths); dev: `pnpm dev` in `www/`
    (port 4199, hits prod API by default; `VITE_API_BASE` overrides).
-   Remaining: watchy.rbw.sh custom domain + CF Access — **gate before (or with)
-   the domain**; the workers.dev URL already serves logins publicly.
-   2026-07-28: `routes = [{ pattern = "watchy.rbw.sh", custom_domain = true }]`
-   added to `wrangler.toml`, but deploy is blocked: wrangler's OAuth session is now
-   the openathena.ai account, and the worker lives in the personal account
-   (`0dcad565…`). Fix: `wrangler login` back to personal, or set
-   `CLOUDFLARE_API_TOKEN` (personal-account token) and redeploy.
+   2026-07-28: **watchy.rbw.sh live** via CFP project `watchy-www` + Namecheap
+   CNAME (see Web app section — no zone move; the Workers-custom-domain route was
+   added then reverted). Pushover secrets set (`/test-pushover` → `sent: true`).
+   Auth: personal-account API token (`CLOUDFLARE_API_TOKEN` in `.envrc` —
+   Pages:Edit, Workers Scripts:Edit, D1:Edit, Account Settings:Read); needed
+   because wrangler's OAuth session is the openathena.ai account.
+   Access gating: decided against CF Access (would require the zone on CF);
+   if logins should go non-public later, hand-roll a key/cookie gate on the
+   worker's `/api/*` (extend the `keyGate` pattern).
 4. **Phase 4 — decommission**: ✅ (2026-07-28)
    - [x] parity check (state-level, via public API — `tmp/parity.py`): `.watchy` HEAD
      (last data commit f3ac1db, 2026-07-21) + post-cutoff `source='live'` events vs
