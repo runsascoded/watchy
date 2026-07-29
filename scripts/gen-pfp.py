@@ -1,0 +1,164 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["click", "pillow"]
+# ///
+"""Generate watchy bot pfp/icon candidates (1024x1024 PNGs).
+
+Vector variants (eye-star, telescope, star-arcs) are SVG-based (need `rsvg-convert`);
+`octomosaic` builds the GitHub mark out of ⭐/📣 emoji (needs macOS Apple Color Emoji).
+"""
+
+import math
+import subprocess
+from pathlib import Path
+
+from click import argument, command, option
+
+S = 1024
+BG = "#0d1117"       # GitHub dark
+GOLD = "#e3b341"     # GitHub star gold
+BLUE = "#58a6ff"     # GitHub link blue
+WHITE = "#e6edf3"
+
+# Canonical GitHub mark (viewBox 0 0 24 24)
+GH_PATH = (
+    "M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 "
+    "0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7"
+    "c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 "
+    "3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 "
+    "1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 "
+    "1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 "
+    "1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 "
+    "2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"
+)
+
+
+def star_points(cx: float, cy: float, R: float, r: float, rot: float = -90) -> str:
+    pts = []
+    for i in range(10):
+        rad = math.radians(rot + i * 36)
+        radius = R if i % 2 == 0 else r
+        pts.append(f"{cx + radius * math.cos(rad):.1f},{cy + radius * math.sin(rad):.1f}")
+    return " ".join(pts)
+
+
+def render_svg(out_dir: Path, name: str, body: str) -> Path:
+    svg = out_dir / f"pfp-{name}.svg"
+    svg.write_text(f'<svg xmlns="http://www.w3.org/2000/svg" width="{S}" height="{S}" viewBox="0 0 {S} {S}">\n'
+                   f'<rect width="{S}" height="{S}" fill="{BG}"/>\n{body}\n</svg>\n')
+    png = out_dir / f"pfp-{name}.png"
+    subprocess.run(["rsvg-convert", "-w", str(S), "-h", str(S), "-o", str(png), str(svg)], check=True)
+    return png
+
+
+def eye_star(out_dir: Path) -> Path:
+    eye_h = 250
+    return render_svg(out_dir, "eye-star", f'''
+<path d="M 132 512 Q 512 {512 - eye_h} 892 512 Q 512 {512 + eye_h} 132 512 Z"
+      fill="none" stroke="{WHITE}" stroke-width="46" stroke-linejoin="round"/>
+<circle cx="512" cy="512" r="185" fill="{BLUE}" opacity="0.25"/>
+<polygon points="{star_points(512, 522, 150, 60)}" fill="{GOLD}"/>
+''')
+
+
+def telescope(out_dir: Path) -> Path:
+    return render_svg(out_dir, "telescope", f'''
+<g transform="rotate(-32 512 640)">
+  <rect x="272" y="586" width="470" height="108" rx="24" fill="{WHITE}"/>
+  <rect x="700" y="570" width="90" height="140" rx="20" fill="{BLUE}"/>
+  <rect x="228" y="600" width="70" height="80" rx="16" fill="{BLUE}"/>
+</g>
+<line x1="472" y1="702" x2="352" y2="920" stroke="{WHITE}" stroke-width="40" stroke-linecap="round"/>
+<line x1="512" y1="702" x2="632" y2="920" stroke="{WHITE}" stroke-width="40" stroke-linecap="round"/>
+<polygon points="{star_points(752, 232, 120, 48)}" fill="{GOLD}"/>
+<polygon points="{star_points(392, 172, 62, 25)}" fill="{GOLD}" opacity="0.75"/>
+<polygon points="{star_points(200, 330, 42, 17)}" fill="{GOLD}" opacity="0.5"/>
+''')
+
+
+def star_arcs(out_dir: Path) -> Path:
+    arcs = "".join(
+        f'<path d="M {512 + r * math.cos(math.radians(-45)):.0f} {512 + r * math.sin(math.radians(-45)):.0f} '
+        f'A {r} {r} 0 0 1 {512 + r * math.cos(math.radians(45)):.0f} {512 + r * math.sin(math.radians(45)):.0f}"'
+        f' fill="none" stroke="{BLUE}" stroke-width="34" stroke-linecap="round" opacity="{o}" transform="rotate(-45 512 512)"/>'
+        for r, o in [(300, 0.9), (390, 0.6), (480, 0.35)]
+    )
+    return render_svg(out_dir, "star-arcs", f'<g transform="translate(-60 60)">'
+                                            f'<polygon points="{star_points(512, 512, 240, 96)}" fill="{GOLD}"/>{arcs}</g>')
+
+
+def octomosaic(out_dir: Path, cols: int, mega_every: int, coverage: int, glyph_scale: float) -> Path:
+    from PIL import Image, ImageDraw, ImageFont
+
+    mask_svg = out_dir / "gh-mask.svg"
+    mask_svg.write_text(
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{S}" height="{S}" viewBox="0 0 24 24">'
+        f'<rect width="24" height="24" fill="black"/><path d="{GH_PATH}" fill="white"/></svg>\n'
+    )
+    mask_png = out_dir / "gh-mask.png"
+    subprocess.run(["rsvg-convert", "-w", str(S), "-h", str(S), "-o", str(mask_png), str(mask_svg)], check=True)
+    mask = Image.open(mask_png).convert("L")
+
+    font = ImageFont.truetype("/System/Library/Fonts/Apple Color Emoji.ttc", 160)
+
+    def glyph(ch: str, px: int) -> "Image.Image":
+        img = Image.new("RGBA", (320, 320), (0, 0, 0, 0))
+        ImageDraw.Draw(img).text((80, 80), ch, font=font, embedded_color=True)
+        return img.crop(img.getbbox()).resize((px, px), Image.LANCZOS)
+
+    cell = S // cols
+    gsize = int(cell * glyph_scale)
+    star, mega = glyph("⭐", gsize), glyph("📣", gsize)
+    out = Image.new("RGBA", (S, S), BG)
+    n = 0
+    for gy in range(cols):
+        for gx in range(cols):
+            cx, cy = gx * cell + cell // 2, gy * cell + cell // 2
+            pts = [(cx, cy), (cx - cell // 3, cy), (cx + cell // 3, cy), (cx, cy - cell // 3), (cx, cy + cell // 3)]
+            if sum(mask.getpixel(p) > 128 for p in pts) >= coverage:
+                n += 1
+                off = (cell - gsize) // 2
+                out.alpha_composite(mega if n % mega_every == 0 else star, (gx * cell + off, gy * cell + off))
+    png = out_dir / f"pfp-octomosaic-{cols}.png"
+    out.convert("RGB").save(png)
+
+    # small-size readability strip: 36px / 64px renders, upscaled 4x
+    rgb = out.convert("RGB")
+    strip = Image.new("RGB", (4 * (36 + 64) + 60, 4 * 64 + 40), "#222")
+    for i, px in enumerate([36, 64]):
+        small = rgb.resize((px, px), Image.LANCZOS).resize((px * 4, px * 4), Image.NEAREST)
+        strip.paste(small, (20 + i * (36 * 4 + 40), 20))
+    strip.save(out_dir / f"pfp-octomosaic-{cols}-small.png")
+    return png
+
+
+VARIANTS = {
+    "eye-star": lambda out_dir, **kw: eye_star(out_dir),
+    "telescope": lambda out_dir, **kw: telescope(out_dir),
+    "star-arcs": lambda out_dir, **kw: star_arcs(out_dir),
+    "octomosaic": lambda out_dir, **kw: octomosaic(out_dir, **kw),
+}
+
+
+@command
+@option("-c", "--cols", default=18, help="octomosaic: grid columns (default: 18)")
+@option("-g", "--glyph-scale", default=1.2, help="octomosaic: glyph size / cell size (default: 1.2)")
+@option("-m", "--mega-every", default=7, help="octomosaic: every Nth glyph is a 📣 (default: 7)")
+@option("-o", "--out-dir", default="tmp", help="Output directory (default: tmp/)")
+@option("-v", "--coverage", default=3, help="octomosaic: mask samples (of 5) required to place a glyph (default: 3)")
+@argument("variants", nargs=-1)
+def main(cols: int, glyph_scale: float, mega_every: int, out_dir: str, coverage: int, variants: tuple[str, ...]):
+    """Generate pfp candidates. VARIANTS defaults to all of: eye-star, telescope, star-arcs, octomosaic."""
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    for name in variants or VARIANTS:
+        fn = VARIANTS.get(name)
+        if fn is None:
+            raise SystemExit(f"unknown variant {name!r}; choose from {', '.join(VARIANTS)}")
+        kw = dict(cols=cols, mega_every=mega_every, coverage=coverage, glyph_scale=glyph_scale) if name == "octomosaic" else {}
+        print(fn(out, **kw))
+
+
+if __name__ == "__main__":
+    main()
