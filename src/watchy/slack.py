@@ -45,10 +45,15 @@ def event_metadata(m: EventMsg) -> dict:
 
 
 def build_messages(events: list[dict], match: tuple[str, ...]) -> list[EventMsg]:
-    """Matching events as desired messages, in ``id`` (insertion) order — append-only."""
+    """Matching events as desired messages, in event-time order.
+
+    Flat messages never reposition, so the sort key only shapes each batch's
+    posting order — ``(ts, id)`` reads chronologically (``id`` alone would
+    replay insertion order, e.g. bootstrap batches grouped repo-by-repo).
+    """
     return [
         EventMsg(id=e["id"], date=e["ts"][:10], content=render_event(e))
-        for e in sorted((e for e in events if matches(e["target"], match)), key=lambda e: e["id"])
+        for e in sorted((e for e in events if matches(e["target"], match)), key=lambda e: (e["ts"], e["id"]))
     ]
 
 

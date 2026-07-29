@@ -34,17 +34,18 @@ def test_matches():
     assert matches("runsascoded/watchy", match) is False
 
 
-def test_build_messages_filters_and_orders_by_id():
+def test_build_messages_filters_and_orders_by_ts():
     events = [
-        # ts-desc as the API returns them; note id 30 has an earlier ts than id 20 (backdated starred_at)
+        # ts-desc as the API returns them; note id 30 was *inserted* after id 20 but has an earlier ts
+        # (bootstrap batches insert repo-by-repo) — ts order wins
         ev(40, "2026-07-28T16:01:43Z", "star", "Open-Athena/Kelp", "postylem"),
         ev(35, "2026-07-28T12:00:00Z", "star", "runsascoded/watchy", "someone"),  # no match
         ev(30, "2026-07-27T01:00:00Z", "star", "marin-community/marin", "backdated"),
         ev(20, "2026-07-27T22:52:57Z", "star", "Open-Athena/marin-dna", "alxmrs"),
     ]
     assert build_messages(events, ("Open-Athena", "marin-community")) == [
-        EventMsg(id=20, date="2026-07-27", content=":star: <https://github.com/alxmrs|alxmrs> starred <https://github.com/Open-Athena/marin-dna|Open-Athena/marin-dna> · 2026-07-27 22:52Z"),
         EventMsg(id=30, date="2026-07-27", content=":star: <https://github.com/backdated|backdated> starred <https://github.com/marin-community/marin|marin-community/marin> · 2026-07-27 01:00Z"),
+        EventMsg(id=20, date="2026-07-27", content=":star: <https://github.com/alxmrs|alxmrs> starred <https://github.com/Open-Athena/marin-dna|Open-Athena/marin-dna> · 2026-07-27 22:52Z"),
         EventMsg(id=40, date="2026-07-28", content=":star: <https://github.com/postylem|postylem> starred <https://github.com/Open-Athena/Kelp|Open-Athena/Kelp> · 2026-07-28 16:01Z"),
     ]
 
