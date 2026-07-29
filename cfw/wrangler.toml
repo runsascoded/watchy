@@ -22,6 +22,9 @@ run_worker_first = ["/api/*", "/check", "/test-pushover"]
 TARGETS_JSON = '{"stars":["runsascoded","ryan-williams","hudcostreets","bikejc","embankmentjc","neighbor-ryan","Open-Athena","marin-community"],"follows":["runsascoded","ryan-williams","hudcostreets","bikejc","embankmentjc","neighbor-ryan","Open-Athena","marin-community"]}'
 # UTC hour of the daily full sweep (bypasses the count-delta gate)
 FULL_SWEEP_HOUR = "8"
+# Target prefixes whose events get posted to Slack (SLACK_BOT_TOKEN secret + these two must all be set)
+SLACK_CHANNEL_ID = "C0BKZUV1SKH"
+SLACK_MATCHES_JSON = '["Open-Athena","marin-community"]'
 
 [observability]
 enabled = true

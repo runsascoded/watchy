@@ -8,6 +8,9 @@ export interface Env {
   PUSHOVER_TOKEN?: string
   PUSHOVER_USER?: string
   MANUAL_CHECK_KEY?: string
+  SLACK_BOT_TOKEN?: string
+  SLACK_CHANNEL_ID?: string
+  SLACK_MATCHES_JSON?: string
 }
 
 interface Targets {

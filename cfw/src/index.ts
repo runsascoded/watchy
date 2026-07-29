@@ -1,6 +1,7 @@
 import { collect, type CollectResult, type Env } from './collect'
 import { maybeAlert } from './alerts'
 import { sendPushover } from './pushover'
+import { syncSlack } from './slack'
 
 async function runCollection(env: Env, fullSweep: boolean): Promise<CollectResult> {
   const startedAt = new Date().toISOString()
@@ -25,6 +26,12 @@ async function runCollection(env: Env, fullSweep: boolean): Promise<CollectResul
   const alerted = await maybeAlert(env, runId, result.ok, result.error)
   if (alerted) {
     await env.DB.prepare('UPDATE runs SET alerted = 1 WHERE id = ?').bind(runId).run()
+  }
+  try {
+    const slackPosted = await syncSlack(env)
+    if (slackPosted) console.log(`slack: posted ${slackPosted} event(s)`)
+  } catch (e) {
+    console.error('syncSlack failed:', e)
   }
   console.log(JSON.stringify({ runId, ...result }))
   return result
