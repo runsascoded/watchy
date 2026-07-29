@@ -35,9 +35,13 @@ watchy slack rm -s 2026-07-22 -u 2026-07-24 [-n] [-y] [-f]   # or -a for all
 - `rm` deletes by event-date range, keeps messages whose thread replies would be orphaned unless `-f`, prompts unless `-y`.
 - Pace note: thrds' 0.4s default exceeds Slack's documented sustained `chat.postMessage` rate (~1 msg/s/channel, special tier); use `-p 1.0` for large backfills. Slack's post-2025-05 non-Marketplace limits on `conversations.history` (~1 req/min, 15/page for new apps) haven't bitten at our volume but would degrade gracefully (`Retry-After`).
 
-## Scheduling (later)
+## Live posting (worker-native) — ✅ 2026-07-28
 
-v1 is CLI-invoked. With the worker now on a 10-minute cadence, the natural end state is worker-native posting after each `collect()` (ctbk pattern: [`@rdub/thrds`] in a CF Worker, or plain `chat.postMessage` since flat-append needs no thread sync) — the declarative design makes the runner interchangeable, and the CLI remains the audit/backfill/repair tool.
+The worker posts new matching events after each 10-minute `collect()` (`cfw/src/slack.ts`), gated on `SLACK_BOT_TOKEN` (secret) + `SLACK_CHANNEL_ID`/`SLACK_MATCHES_JSON` (vars). Posted-state for the worker is the **`slack_posts` D1 ledger** (`event_id → slack ts`; `ts NULL` = seeded/handled) — cheap set-difference per run, no Slack history reads at 144 runs/day. ≤25 posts/run at 1s pace; a post failure halts the batch (chronology preserved; retried next tick). Same message metadata as the CLI.
+
+Cutover history: 6-month backfill (631 events, ts-ordered) via CLI; ledger then seeded with **all** matching event ids (2,365 — the pre-window ~1,700 are marked handled-never-post); CLI catch-up pass confirmed 0 stragglers; then secret set + deploy.
+
+The CLI remains the audit/backfill/repair tool: it reconciles against *actual Slack content* (metadata read-back), so it can detect/fix drift the ledger can't see (e.g. hand-deleted messages). Note the two stores can disagree: `rm` deletes from Slack but not the ledger (the worker won't repost — usually what you want); to make the worker repost an event, also delete its `slack_posts` row.
 
 ## Files
 
