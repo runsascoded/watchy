@@ -1,20 +1,18 @@
 """Declarative Slack sync of watch events (see specs/slack-sync.md).
 
-Day-per-thread layout, reconciled via ``thrds``: OPs are static date headers
-(never edited); replies are one line per event, ordered by event ``id`` so
-threads are append-only even when backdated events (old ``starred_at``) arrive.
-Posted-state lives in Slack itself, recovered from OP message metadata.
+Flat layout: one channel message per event, posted in event-``id`` order
+(append-only; events are immutable, so the reconcile is pure set-difference —
+no edits, no deletes). Posted-state lives in Slack itself, recovered from
+per-message metadata ``{event_type: watchy_event, event_payload: {id, date}}``.
 """
 
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from thrds import SyncResult, Thread
-
-DAY_EVENT_TYPE = "watchy_day"
+EVENT_TYPE = "watchy_event"
 
 # Shortcodes, not literal emoji: Slack normalizes literals to shortcodes in stored
-# message text, so literals would make read-back never match desired (perma-EDIT).
+# message text, so literals would make read-back never match desired (perma-diff).
 KIND_VERBS = {
     "star": (":star:", "starred"),
     "unstar": (":broken_heart:", "unstarred"),
@@ -31,135 +29,120 @@ def matches(target: str, match: tuple[str, ...]) -> bool:
 def render_event(e: dict) -> str:
     emoji, verb = KIND_VERBS[e["kind"]]
     login, target, ts = e["login"], e["target"], e["ts"]
-    hhmm = ts[11:16]
-    return f"{emoji} <https://github.com/{login}|{login}> {verb} <https://github.com/{target}|{target}> {hhmm}Z"
-
-
-def day_op(date: str) -> str:
-    return f":calendar: *{date}*"
-
-
-def op_metadata(date: str) -> dict:
-    return {"event_type": DAY_EVENT_TYPE, "event_payload": {"date": date}}
+    date, hhmm = ts[:10], ts[11:16]
+    return f"{emoji} <https://github.com/{login}|{login}> {verb} <https://github.com/{target}|{target}> · {date} {hhmm}Z"
 
 
 @dataclass
-class DayThread:
+class EventMsg:
+    id: int
     date: str
-    messages: list[str]  # [op, *event lines]
+    content: str
 
 
-def build_day_threads(events: list[dict], match: tuple[str, ...]) -> list[DayThread]:
-    """Group matching events into per-UTC-day desired threads, event lines in ``id`` order."""
-    by_date: dict[str, list[dict]] = {}
-    for e in events:
-        if not matches(e["target"], match):
-            continue
-        by_date.setdefault(e["ts"][:10], []).append(e)
+def event_metadata(m: EventMsg) -> dict:
+    return {"event_type": EVENT_TYPE, "event_payload": {"id": m.id, "date": m.date}}
+
+
+def build_messages(events: list[dict], match: tuple[str, ...]) -> list[EventMsg]:
+    """Matching events as desired messages, in ``id`` (insertion) order — append-only."""
     return [
-        DayThread(date=date, messages=[day_op(date)] + [render_event(e) for e in sorted(es, key=lambda e: e["id"])])
-        for date, es in sorted(by_date.items())
+        EventMsg(id=e["id"], date=e["ts"][:10], content=render_event(e))
+        for e in sorted((e for e in events if matches(e["target"], match)), key=lambda e: e["id"])
     ]
 
 
-def truncate_days(days: list[DayThread], max_msgs: int) -> list[DayThread]:
-    """Cap total desired messages (OPs + lines) across days, oldest-first.
-
-    The last included day may be truncated mid-thread — safe because threads are
-    append-only: the next un-capped run completes it. A day is dropped entirely
-    rather than posting a bare OP with no events.
-    """
-    out: list[DayThread] = []
-    budget = max_msgs
-    for day in days:
-        if budget < 2:
-            break
-        if len(day.messages) <= budget:
-            out.append(day)
-            budget -= len(day.messages)
-        else:
-            out.append(DayThread(date=day.date, messages=day.messages[:budget]))
-            budget = 0
-    return out
+@dataclass
+class Posted:
+    """A previously-posted event message, read back from channel history."""
+    id: int
+    date: str
+    ts: str
+    content: str
 
 
-def sync_days(
-    client,
-    days: list[DayThread],
-    existing: dict[str, str],
+def sync_flat(
+    post: Callable[[EventMsg], None],
+    desired: list[EventMsg],
+    posted_ids: set[int],
+    max_msgs: Optional[int] = None,
     dry_run: bool = False,
     pace: float = 0.4,
     log: Optional[Callable[[str], None]] = None,
-) -> list[tuple[DayThread, SyncResult]]:
-    """Reconcile each desired day-thread against Slack.
-
-    ``client`` needs a thrds-``SlackClient``-shaped ``.sync(thread, thread_ts=, dry_run=, pace=, metadata=)``;
-    ``existing`` maps date → thread_ts for already-posted day OPs (absent → create).
-    """
-    results = []
-    for day in days:
-        op = day.messages[0]
-        result = client.sync(
-            Thread(messages=day.messages),
-            thread_ts=existing.get(day.date),
-            dry_run=dry_run,
-            pace=pace,
-            metadata={op: op_metadata(day.date)},
-        )
+    sleep: Callable[[float], None] = None,
+) -> list[EventMsg]:
+    """Post desired messages whose event ``id`` isn't already in the channel, oldest-first."""
+    if sleep is None:
+        from time import sleep as sleep_
+        sleep = sleep_
+    missing = [m for m in desired if m.id not in posted_ids]
+    capped = missing if max_msgs is None else missing[:max_msgs]
+    for m in capped:
         if log:
-            posted = sum(1 for a in result.actions if a.type.name == "POST")
-            skipped = sum(1 for a in result.actions if a.type.name == "SKIP")
-            log(f"{day.date}: {posted} posted, {skipped} skipped" + (" (dry-run)" if dry_run else ""))
-        results.append((day, result))
-    return results
+            log(f"{'would post' if dry_run else 'posting'} [{m.id}] {m.content}")
+        if not dry_run:
+            post(m)
+            sleep(pace)
+    if log:
+        deferred = len(missing) - len(capped)
+        log(
+            f"{len(capped)} posted, {len(desired) - len(missing)} already present"
+            + (f", {deferred} deferred by cap" if deferred else "")
+            + (" (dry-run)" if dry_run else "")
+        )
+    return capped
 
 
-def delete_day_threads(
+def delete_events(
     client,
-    targets: dict[str, str],
+    targets: list[Posted],
     dry_run: bool = False,
     force: bool = False,
     pace: float = 0.4,
     log: Optional[Callable[[str], None]] = None,
     sleep: Callable[[float], None] = None,
 ) -> None:
-    """Delete day-threads (replies newest-first, then the OP).
+    """Delete posted event messages. Messages with (non-bot) thread replies are kept unless ``force``."""
+    from thrds import OrphanedRepliesError
 
-    Only the bot's own (``editable``) messages are deleted. If foreign replies
-    remain, the OP is kept (they'd be orphaned) unless ``force``.
-    """
     if sleep is None:
         from time import sleep as sleep_
         sleep = sleep_
-    for date, ts in sorted(targets.items()):
-        msgs = client.list_messages(ts)  # OP first, then replies
-        op, replies = msgs[0], msgs[1:]
-        foreign = [m for m in replies if not m.editable]
-        for m in reversed([m for m in replies if m.editable]):
-            if log:
-                log(f"{date}: {'would delete' if dry_run else 'deleting'} reply {m.id}: {m.content}")
-            if not dry_run:
-                client.delete(m.id)
-                sleep(pace)
-        if foreign and not force:
-            if log:
-                log(f"{date}: keeping OP {op.id} ({len(foreign)} non-bot replies would be orphaned; -f to force)")
-            continue
+    for p in sorted(targets, key=lambda p: p.id):
         if log:
-            log(f"{date}: {'would delete' if dry_run else 'deleting'} OP {op.id}: {op.content}")
+            log(f"{'would delete' if dry_run else 'deleting'} [{p.id}] {p.content}")
         if not dry_run:
-            client.delete(op.id, orphans_ok=force)
+            try:
+                client.delete(p.ts, orphans_ok=force)
+            except OrphanedRepliesError as e:
+                if log:
+                    log(f"keeping [{p.id}] ({e.reply_count} thread replies would be orphaned; -f to force)")
+                continue
             sleep(pace)
 
 
-def fetch_day_threads(client, channel: str, max_recs: int = 1000) -> dict[str, str]:
-    """date → thread_ts for this bot's day-OP messages, read back from channel history.
+def post_event(client, channel: str, m: EventMsg) -> None:
+    """chat.postMessage with metadata (thrds ``post`` has no metadata param; use its ``_request``)."""
+    client._request(
+        "chat.postMessage",
+        {
+            "channel": channel,
+            "text": m.content,
+            "metadata": event_metadata(m),
+            "unfurl_links": False,
+            "unfurl_media": False,
+        },
+    )
+
+
+def fetch_posted(client, channel: str, max_recs: int = 5000) -> list[Posted]:
+    """Read back this bot's event messages (id, date, ts, content) from channel history.
 
     Uses thrds ``SlackClient``'s private ``_request`` (no public history API yet — same
     gap ``$hccs/path`` works around).
     """
     user_id, bot_id = client.bot_ids
-    existing: dict[str, str] = {}
+    posted: list[Posted] = []
     cursor = None
     seen = 0
     while seen < max_recs:
@@ -169,15 +152,15 @@ def fetch_day_threads(client, channel: str, max_recs: int = 1000) -> dict[str, s
         resp = client._request("conversations.history", params, method="GET")
         msgs = resp.get("messages", [])
         seen += len(msgs)
-        for m in msgs:
-            if not (m.get("user") == user_id or (bot_id and m.get("bot_id") == bot_id)):
+        for msg in msgs:
+            if not (msg.get("user") == user_id or (bot_id and msg.get("bot_id") == bot_id)):
                 continue
-            md = m.get("metadata") or {}
-            if md.get("event_type") == DAY_EVENT_TYPE:
-                date = (md.get("event_payload") or {}).get("date")
-                if date:
-                    existing[date] = m["ts"]
+            md = msg.get("metadata") or {}
+            if md.get("event_type") == EVENT_TYPE:
+                payload = md.get("event_payload") or {}
+                if "id" in payload:
+                    posted.append(Posted(id=int(payload["id"]), date=payload.get("date", ""), ts=msg["ts"], content=msg.get("text", "")))
         cursor = (resp.get("response_metadata") or {}).get("next_cursor")
         if not cursor:
             break
-    return existing
+    return posted

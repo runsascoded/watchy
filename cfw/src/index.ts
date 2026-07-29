@@ -134,7 +134,9 @@ async function apiStatus(env: Env): Promise<Response> {
 
 export default {
   async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    const fullSweep = new Date(event.scheduledTime).getUTCHours() === parseInt(env.FULL_SWEEP_HOUR)
+    // Minute check matters at sub-hourly cron cadence: sweep once at HH:00, not every tick of the hour
+    const d = new Date(event.scheduledTime)
+    const fullSweep = d.getUTCHours() === parseInt(env.FULL_SWEEP_HOUR) && d.getUTCMinutes() === 0
     ctx.waitUntil(
       runCollection(env, fullSweep).catch(e => console.error('runCollection failed:', e)),
     )
