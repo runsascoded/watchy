@@ -11,7 +11,7 @@ jobs:
     - uses: astral-sh/setup-uv@v5
       with:
         python-version: '3.12'
-    - run: uv venv && uv pip install -e '.[dev]'
+    - run: uv pip install -e '.[dev]'
     - run: uv run pytest test/ -q
   cfw:
     runs-on: ubuntu-latest
