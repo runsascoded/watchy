@@ -14,10 +14,14 @@ Vision (RW, 2026-08-07): an auth-walled variant of watchy.rbw.sh — same event 
    - D1 `actors`: GH profile fields + `orgs` (JSON) + `fetched_at`.
    - Each cron tick enriches ≤10 posted-event actors lacking a fresh row (2 GH calls each; 30-day refresh). Backfills gradually; bootstrap-imported the 262 June+ actors.
    - `/api/actors`: actors joined with posted-event counts/latest, follower-sorted.
-2. **AR page on the site** — port the artifact table to a React route reading `/api/actors` (+ twitter/linkedin links, GH-mutuals column). Hold behind phase 3 — don't ship recruit-scouting UI on the public host.
-3. **Auth wall** — Cloudflare Access (Zero Trust) in front of a new hostname, allowlist `@openathena.ai` (email OTP or Google SSO; free tier covers this).
-   - **Open decisions (RW)**: hostname + zone (`watchy.openathena.ai`? is `oa.dev` owned?); which CF account carries the zone/Access (org's, presumably, vs personal where watchy currently lives).
-   - Public watchy.rbw.sh keeps feed/health/icons; AR (and maybe summaries) internal-only.
+2. **AR page on the site** ✅ — `/actors` React route over `/api/actors` (filter box, org chips, OA badge, X/LinkedIn/blog links). Compiled in only when `VITE_INTERNAL=1` — the public watchy.rbw.sh bundle omits it entirely.
+3. **Auth wall** — following the `$oa/marin-gcs-usage` precedent (gcs.oa.dev): CF Access app in the **Open Athena CF account**, edge-gating the hostname; app code stays coarse (no in-app JWT validation). applitrack's app-level OAuth+roles is more than we need.
+   - ✅ CFP project **watchy-internal** created + deployed in the OA account (internal build); `watchy.oa.dev` registered as its custom domain (pending DNS).
+   - **Dashboard runbook (RW — deploy token lacks zone + Zero Trust perms)**, OA CF account:
+     1. DNS: `oa.dev` zone → add CNAME `watchy` → `watchy-internal.pages.dev`, proxied. (Activates the pending custom domain.)
+     2. Zero Trust → Access → Applications → Add self-hosted: name **watchy**, domains `watchy.oa.dev` **and** `watchy-internal.pages.dev` (the pages.dev URL is otherwise publicly reachable), policy = clone of "GCS usage": allow email-domain `openathena.ai` (+ external whitelist as needed).
+   - ⚠️ Until step 2, `watchy-internal.pages.dev` is up and ungated (obscure URL, public-GH data only — but do the Access app promptly).
+   - Public watchy.rbw.sh keeps feed/health/icons; AR (and later summaries) internal-only.
 4. **Plots** — `/api/counts` already exists; add a time-series chart page (star-history style) per target + overview.
 5. **Weekly summaries** — second cron (Monday AM): Δ per target over the week, new notable actors (by followers), event count → post to Slack + store in D1 `summaries` for the site narrative page. Mechanical first; LLM narrative later.
 6. **Deep AR (agentic)** — scheduled Claude routine scoring "prospect interestingness" (GH reach, org signals, web/LinkedIn discovery) writing back into `actors` extra fields; human-reviewable.
