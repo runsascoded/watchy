@@ -1,5 +1,8 @@
 import { collect, type CollectResult, type Env } from './collect'
 import { enrichActors } from './actors'
+import { buildWeekStats, renderSummary, weeklySummary } from './summary'
+
+const WEEKLY_CRON = '0 14 * * 1' // keep in sync with wrangler.jsonc triggers.crons
 import { maybeAlert } from './alerts'
 import { sendPushover } from './pushover'
 import { syncSlack } from './slack'
@@ -188,6 +191,10 @@ async function apiStatus(env: Env): Promise<Response> {
 
 export default {
   async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (event.cron === WEEKLY_CRON) {
+      ctx.waitUntil(weeklySummary(env).catch(e => console.error('weeklySummary failed:', e)))
+      return
+    }
     // Minute check matters at sub-hourly cron cadence: sweep once at HH:00, not every tick of the hour
     const d = new Date(event.scheduledTime)
     const fullSweep = d.getUTCHours() === parseInt(env.FULL_SWEEP_HOUR) && d.getUTCMinutes() === 0
@@ -207,6 +214,19 @@ export default {
     if (path === '/api/series') return apiSeries(url, env)
     if (path === '/api/status') return apiStatus(env)
     if (path === '/api/health') return apiHealth(env)
+    if (path === '/api/summaries') {
+      const { results } = await env.DB
+        .prepare('SELECT week_start, created_at, text, stats, slack_ts FROM summaries ORDER BY week_start DESC LIMIT 12')
+        .all()
+      return json({ summaries: results })
+    }
+
+    if (path === '/summary-preview') {
+      const denied = keyGate(req, env)
+      if (denied) return denied
+      const stats = await buildWeekStats(env)
+      return json({ text: renderSummary(stats), stats })
+    }
 
     if (path === '/check') {
       const denied = keyGate(req, env)
