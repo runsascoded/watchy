@@ -129,13 +129,28 @@ def mosaic(mask: "Image.Image", cell_glyph, cols: int, coverage: int, glyph_scal
     return out
 
 
-def octomosaic(out_dir: Path, cols: int, mega_every: int, coverage: int, glyph_scale: float) -> Path:
+def round_corners(img: "Image.Image", frac: float) -> "Image.Image":
+    """Transparent rounded-rect clip (radius = frac × side) — for surfaces that don't round avatars."""
+    from PIL import Image, ImageDraw
+
+    mask = Image.new("L", img.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, img.width - 1, img.height - 1], radius=int(img.width * frac), fill=255)
+    out = img.copy()
+    out.putalpha(mask)
+    return out
+
+
+def octomosaic(out_dir: Path, cols: int, mega_every: int, coverage: int, glyph_scale: float, round_frac: float = 0) -> Path:
     from PIL import Image
 
     mask = gh_mask(out_dir)
     gsize = int((S // cols) * glyph_scale)
     star, mega = emoji_glyph("⭐", gsize), emoji_glyph("📣", gsize)
     out = mosaic(mask, lambda n: mega if n % mega_every == 0 else star, cols, coverage, glyph_scale)
+    if round_frac:
+        png = out_dir / f"pfp-octomosaic-{cols}-rounded.png"
+        round_corners(out, round_frac).save(png)
+        return png
     png = out_dir / f"pfp-octomosaic-{cols}.png"
     out.convert("RGB").save(png)
 
@@ -300,9 +315,10 @@ VARIANTS = {
 @option("-g", "--glyph-scale", default=1.2, help="octomosaic: glyph size / cell size (default: 1.2)")
 @option("-m", "--mega-every", default=7, help="octomosaic: every Nth glyph is a 📣 (default: 7)")
 @option("-o", "--out-dir", default="tmp", help="Output directory (default: tmp/)")
+@option("-r", "--round-frac", default=0.0, help="octomosaic: clip corners to a rounded rect (radius fraction of side; e.g. 0.18)")
 @option("-v", "--coverage", default=3, help="octomosaic: mask samples (of 5) required to place a glyph (default: 3)")
 @argument("variants", nargs=-1)
-def main(cols: int, glyph_scale: float, mega_every: int, out_dir: str, coverage: int, variants: tuple[str, ...]):
+def main(cols: int, glyph_scale: float, mega_every: int, out_dir: str, round_frac: float, coverage: int, variants: tuple[str, ...]):
     """Generate pfp candidates. VARIANTS defaults to all of: eye-star, telescope, star-arcs, octomosaic."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -311,6 +327,8 @@ def main(cols: int, glyph_scale: float, mega_every: int, out_dir: str, coverage:
         if fn is None:
             raise SystemExit(f"unknown variant {name!r}; choose from {', '.join(VARIANTS)}")
         kw = dict(cols=cols, mega_every=mega_every, coverage=coverage, glyph_scale=glyph_scale) if name in ("octomosaic", "avatars") else {}
+        if name == "octomosaic":
+            kw["round_frac"] = round_frac
         print(fn(out, **kw))
 
 
