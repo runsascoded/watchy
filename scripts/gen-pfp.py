@@ -164,13 +164,10 @@ def solid_mark(out_dir: Path) -> "Image.Image":
 
 
 def add_badge(base: "Image.Image", ch: str) -> "Image.Image":
-    """Composite an emoji badge (on a bg-colored circle) into the bottom-right corner."""
-    from PIL import ImageDraw
-
+    """Composite an emoji badge into the bottom-right corner (no backing circle —
+    only the glyph's actual content occludes the base)."""
     out = base.copy()
     cx = cy = S - int(S * 0.30)
-    r = int(S * 0.30)
-    ImageDraw.Draw(out).ellipse([cx - r, cy - r, cx + r, cy + r], fill=BG)
     g = emoji_glyph(ch, int(S * 0.52))
     out.alpha_composite(g, (cx - g.width // 2, cy - g.height // 2))
     return out
