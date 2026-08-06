@@ -43,10 +43,10 @@ export function iconUrl(target: string, kind: string): string {
 
 /** Post unledgered matching events to Slack (oldest event-time first), recording each in `slack_posts`. */
 export async function syncSlack(env: Env): Promise<number> {
-  if (!env.SLACK_BOT_TOKEN || !env.SLACK_CHANNEL_ID || !env.SLACK_MATCHES_JSON) return 0
-  const matches: string[] = JSON.parse(env.SLACK_MATCHES_JSON)
+  if (!env.SLACK_BOT_TOKEN || !env.SLACK_CHANNEL_ID || !env.SLACK_MATCHES) return 0
+  const matches = env.SLACK_MATCHES
   if (!matches.length) return 0
-  const userMap: Record<string, string> = JSON.parse(env.SLACK_USER_MAP_JSON || '{}')
+  const userMap = env.SLACK_USER_MAP ?? {}
 
   const where = matches.map(() => '(e.target = ? OR e.target LIKE ?)').join(' OR ')
   const binds = matches.flatMap(m => [m, `${m}/%`])

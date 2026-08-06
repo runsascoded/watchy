@@ -24,7 +24,7 @@ New top-level dirs in this repo (`runsascoded/watchy`), awair-style:
 cfw/            # single worker: cron collect + API + static FE assets
   src/index.ts
   migrations/   # D1 schema migrations (wrangler d1 migrations)
-  wrangler.toml
+  wrangler.jsonc
 www/            # Vite + TS + React + SASS FE (dev port 4199)
 src/watchy/     # existing py lib: gains `backfill` subcommand (git history → events)
 ```

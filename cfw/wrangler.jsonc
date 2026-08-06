@@ -1,0 +1,64 @@
+{
+  "name": "watchy",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "triggers": {
+    "crons": ["*/10 * * * *"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "watchy",
+      "database_id": "0ea16a24-84b7-4ccc-908a-5876a33aef33"
+    }
+  ],
+  "dev": {
+    "port": 4200
+  },
+  "assets": {
+    "directory": "../www/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/check", "/test-pushover"]
+  },
+  "vars": {
+    "TARGETS": {
+      "stars": ["runsascoded", "ryan-williams", "hudcostreets", "bikejc", "embankmentjc", "neighbor-ryan", "Open-Athena", "marin-community"],
+      "follows": ["runsascoded", "ryan-williams", "hudcostreets", "bikejc", "embankmentjc", "neighbor-ryan", "Open-Athena", "marin-community"]
+    },
+    // UTC hour of the daily full sweep (bypasses the count-delta gate)
+    "FULL_SWEEP_HOUR": "8",
+    // Target prefixes whose events get posted to Slack (SLACK_BOT_TOKEN secret + these two must all be set)
+    "SLACK_CHANNEL_ID": "C0BKZUV1SKH",
+    "SLACK_MATCHES": ["Open-Athena", "marin-community"],
+    // GH login → OA Slack user id; known actors get an (<@U…>) mention after their GH link.
+    // Built by cross-referencing GH org members' profile names against workspace users
+    // (email-domain search); unmatched org members: ForOwlMankind, wmoss, LaureZanna, ahmeda14960.
+    "SLACK_USER_MAP": {
+      "alxmrs": "U08800J4DQR",
+      "ClassicLarry": "U0A91M5PG6Q",
+      "dlwh": "U09CB26C44Q",
+      "eric-czech": "U086ET565LP",
+      "forklady42": "U08SBKVRBS5",
+      "gonzalobenegas": "U098XCDS6NQ",
+      "hammer": "U07V3S3NQRH",
+      "Helw150": "U09UPJBGFFW",
+      "ihodes": "U09H5DG7490",
+      "jder": "U086XUETAJ0",
+      "mcwitt": "U0BH3S95CQ1",
+      "michaelabbott": "U07V13REVL5",
+      "muchanem": "U0BHEQBQBHD",
+      "penfever": "U0B7LUWF1R6",
+      "ravwojdyla": "U0A6E3V5NBW",
+      "rjpower": "U09B54B93E3",
+      "ryan-williams": "U0922LQRRM0",
+      "sophiebushwick": "U0ABUGLRLQ6",
+      "timodonnell": "U08GPNZAKHU",
+      "yaelelmatad": "U09VDTYDQKW",
+      "yonromai": "U0A66GZDNTF",
+      "znichols": "U0BHU5D4N5U"
+    }
+  },
+  "observability": {
+    "enabled": true
+  }
+}

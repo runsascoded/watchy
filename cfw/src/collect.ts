@@ -3,15 +3,15 @@ import { GhError, listFollowers, listRepos, listStargazers } from './github'
 export interface Env {
   DB: D1Database
   WATCHY_TOKEN: string
-  TARGETS_JSON: string
+  TARGETS: Targets
   FULL_SWEEP_HOUR: string
   PUSHOVER_TOKEN?: string
   PUSHOVER_USER?: string
   MANUAL_CHECK_KEY?: string
   SLACK_BOT_TOKEN?: string
   SLACK_CHANNEL_ID?: string
-  SLACK_MATCHES_JSON?: string
-  SLACK_USER_MAP_JSON?: string
+  SLACK_MATCHES?: string[]
+  SLACK_USER_MAP?: Record<string, string>
 }
 
 interface Targets {
@@ -43,7 +43,7 @@ async function runBatched(db: D1Database, stmts: D1PreparedStatement[]): Promise
  */
 export async function collect(env: Env, fullSweep: boolean): Promise<CollectResult> {
   const db = env.DB
-  const targets = JSON.parse(env.TARGETS_JSON) as Targets
+  const targets = env.TARGETS
   const obsTs = new Date().toISOString()
   const result: CollectResult = { ok: true, fullSweep, nEvents: 0, reposFetched: 0, skipped: [] }
 
