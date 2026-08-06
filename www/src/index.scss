@@ -104,6 +104,37 @@ a { color: var(--link); text-decoration: none;
   }
 }
 
+.graphs {
+  // dataviz reference palette, per-mode steps (validated for both surfaces)
+  --s1: light-dark(#2a78d6, #3987e5);
+  --s2: light-dark(#eb6834, #d95926);
+  --s3: light-dark(#1baf7a, #199e70);
+  --s4: light-dark(#eda100, #c98500);
+  --s5: light-dark(#e87ba4, #d55181);
+  --s6: #008300;
+  --s7: light-dark(#4a3aa7, #9085e9);
+
+  .chart { margin-top: 1.2rem;
+    h2 { font-size: .95rem; margin: 0 0 .2rem; }
+  }
+  svg { width: 100%; height: auto; display: block; }
+  .grid { stroke: var(--border); stroke-width: 1; }
+  .tick { fill: var(--dim); font-size: 10px; }
+  .xhair { stroke: var(--dim); stroke-width: 1; stroke-dasharray: 3 3; }
+  .legend { display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin: .2rem 0 .4rem; font-size: .82rem;
+    .li { display: inline-flex; align-items: center; gap: .35rem;
+      b { font-variant-numeric: tabular-nums; }
+    }
+  }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .picker { display: flex; flex-wrap: wrap; gap: .2rem .9rem; margin: .3rem 0 1rem; font-size: .8rem;
+    label { display: inline-flex; align-items: center; gap: .35rem; color: var(--dim); cursor: pointer;
+      &.on { color: var(--fg); }
+      input { accent-color: var(--fg); }
+    }
+  }
+}
+
 .actors {
   .filters { margin: .8rem 0;
     input {

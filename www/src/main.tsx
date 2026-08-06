@@ -5,6 +5,7 @@ import { createBrowserRouter, Link, Outlet, RouterProvider } from 'react-router-
 import Feed from './pages/Feed'
 import Health from './pages/Health'
 import Icons from './pages/Icons'
+import Graphs from './pages/Graphs'
 import Actors from './pages/Actors'
 
 // Internal-only routes (AR etc.) are compiled in only for the Access-gated
@@ -22,6 +23,7 @@ function Layout() {
         <nav>
           <Link to="/">Feed</Link>
           <Link to="/health">Health</Link>
+          <Link to="/graphs">Graphs</Link>
           <Link to="/icons">Icons</Link>
           {INTERNAL && <Link to="/actors">Actors</Link>}
           <a href="https://github.com/runsascoded/watchy">GitHub</a>
@@ -39,6 +41,7 @@ const router = createBrowserRouter([
       { path: '/', element: <Feed /> },
       { path: '/health', element: <Health /> },
       { path: '/icons', element: <Icons /> },
+      { path: '/graphs', element: <Graphs /> },
       ...(INTERNAL ? [{ path: '/actors', element: <Actors /> }] : []),
     ],
   },

@@ -107,6 +107,30 @@ async function apiCounts(url: URL, env: Env): Promise<Response> {
   return json({ target, counts: results })
 }
 
+/** Count-over-time for a target, reconstructed from the events backlog.
+ * Running ±1 sum over star/unstar (repos) or follow/unfollow (orgs), anchored so the
+ * series ends at the current absolute count — `counts` only starts at the worker
+ * cutover, but events carry the 6-month backfill. */
+async function apiSeries(url: URL, env: Env): Promise<Response> {
+  const target = url.searchParams.get('target')
+  if (!target) return json({ error: 'target param required' }, 400)
+  const isRepo = target.includes('/')
+  const [cum, current] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT ts, SUM(CASE WHEN kind IN ('star', 'follow') THEN 1 ELSE -1 END)
+         OVER (ORDER BY ts, id) AS cum
+       FROM events WHERE target = ? ORDER BY ts, id`,
+    ).bind(target),
+    isRepo
+      ? env.DB.prepare('SELECT COUNT(*) AS n FROM stars WHERE repo = ?').bind(target)
+      : env.DB.prepare('SELECT COUNT(*) AS n FROM follows WHERE target = ?').bind(target),
+  ])
+  const rows = cum.results as { ts: string; cum: number }[]
+  const n = (current.results[0] as { n: number }).n
+  const offset = rows.length ? n - rows[rows.length - 1].cum : n
+  return json({ target, series: rows.map(r => ({ ts: r.ts, count: r.cum + offset })) })
+}
+
 /** Enriched actors behind posted events, follower-sorted, with posted-activity rollups. */
 async function apiActors(url: URL, env: Env): Promise<Response> {
   const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '500', 10), 2000)
@@ -180,6 +204,7 @@ export default {
     if (path === '/api/targets') return apiTargets(env)
     if (path === '/api/counts') return apiCounts(url, env)
     if (path === '/api/actors') return apiActors(url, env)
+    if (path === '/api/series') return apiSeries(url, env)
     if (path === '/api/status') return apiStatus(env)
     if (path === '/api/health') return apiHealth(env)
 
