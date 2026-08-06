@@ -158,17 +158,25 @@ def solid_mark(out_dir: Path) -> "Image.Image":
 
     mask = gh_mask(out_dir)
     out = Image.new("RGBA", (S, S), BG)
-    gold = Image.new("RGBA", (S, S), GOLD)
-    out.paste(gold, (0, 0), mask)
+    white = Image.new("RGBA", (S, S), WHITE)
+    out.paste(white, (0, 0), mask)
     return out
 
 
-def add_badge(base: "Image.Image", ch: str) -> "Image.Image":
+# Kinds whose badge glyph is h-flipped (📣 opens left; flip so it matches 🔇's rightward face)
+FLIP_KINDS = {"follow"}
+
+
+def add_badge(base: "Image.Image", ch: str, flip: bool = False) -> "Image.Image":
     """Composite an emoji badge into the bottom-right corner (no backing circle —
     only the glyph's actual content occludes the base)."""
+    from PIL import Image
+
     out = base.copy()
     cx = cy = S - int(S * 0.30)
     g = emoji_glyph(ch, int(S * 0.52))
+    if flip:
+        g = g.transpose(Image.FLIP_LEFT_RIGHT)
     out.alpha_composite(g, (cx - g.width // 2, cy - g.height // 2))
     return out
 
@@ -271,7 +279,7 @@ def icons(out_dir: Path) -> Path:
     for slug, base in bases.items():
         for kind, ch in KIND_EMOJI.items():
             name = f"{slug}-{kind}.png"
-            add_badge(base, ch).convert("RGB").resize((512, 512), Image.LANCZOS).save(out_dir / name)
+            add_badge(base, ch, flip=kind in FLIP_KINDS).convert("RGB").resize((512, 512), Image.LANCZOS).save(out_dir / name)
             files.append(name)
     (out_dir / "manifest.json").write_text(json.dumps({"files": files}, indent=2) + "\n")
     return out_dir

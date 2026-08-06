@@ -37,7 +37,7 @@ export function renderEvent(e: EventRow, count?: number): string {
 export function iconUrl(target: string, kind: string): string {
   const org = target.split('/')[0].toLowerCase()
   // ?v busts Slack's per-URL image-proxy cache; bump when icon content changes
-  return `${ICON_BASE}/${ICON_ORGS.has(org) ? org : 'gh'}-${kind}.png?v=2`
+  return `${ICON_BASE}/${ICON_ORGS.has(org) ? org : 'gh'}-${kind}.png?v=3`
 }
 
 /** Post unledgered matching events to Slack (oldest event-time first), recording each in `slack_posts`. */
