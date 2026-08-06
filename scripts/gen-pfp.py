@@ -185,6 +185,47 @@ def org_avatar(out_dir: Path, org: str) -> "Image.Image":
     return Image.open(png).convert("RGBA").resize((S, S), Image.LANCZOS)
 
 
+def trim_content(img: "Image.Image") -> tuple["Image.Image", tuple]:
+    """Crop to the content bbox; returns (content, bg color to rebuild the canvas with).
+
+    Bg is inferred from the top-left corner: transparent → alpha bbox (canvas rebuilt on GH-dark),
+    solid → bbox of pixels differing from that corner color.
+    """
+    from PIL import Image, ImageChops
+
+    corner = img.getpixel((0, 0))
+    if corner[3] == 0:
+        return img.crop(img.getchannel("A").getbbox()), tuple(Image.new("RGB", (1, 1), BG).getpixel((0, 0))) + (255,)
+    bbox = ImageChops.difference(img, Image.new("RGBA", img.size, corner)).getbbox()
+    return img.crop(bbox), corner
+
+
+def fit_upleft(content: "Image.Image", bg: tuple, margin: float = 0.05, extent: float = 0.72) -> "Image.Image":
+    """Scale content to fill an `extent`-sized box anchored up-left, clear of the badge circle."""
+    from PIL import Image
+
+    box = int(S * extent)
+    scale = min(box / content.width, box / content.height)
+    content = content.resize((round(content.width * scale), round(content.height * scale)), Image.LANCZOS)
+    out = Image.new("RGBA", (S, S), bg)
+    m = int(S * margin)
+    out.alpha_composite(content, (m + (box - content.width) // 2, m + (box - content.height) // 2))
+    return out
+
+
+def icon_base(cache: Path, org: str) -> "Image.Image":
+    """Badge-ready base for an org: local `img/logos/<slug>.svg` override (on GH-dark) if present,
+    else the GH org avatar — either way trimmed and anchored up-left of the badge."""
+    from PIL import Image
+
+    svg = Path("img/logos") / f"{org.lower()}.svg"
+    if svg.exists():
+        png = cache / f"logo-{org.lower()}.png"
+        subprocess.run(["rsvg-convert", "-w", str(S), "--keep-aspect-ratio", "-o", str(png), str(svg)], check=True)
+        return fit_upleft(*trim_content(Image.open(png).convert("RGBA")))
+    return fit_upleft(*trim_content(org_avatar(cache, org)))
+
+
 def avatars(out_dir: Path, cols: int, mega_every: int, coverage: int, glyph_scale: float) -> Path:
     """Per-event-kind avatar candidates for `chat.postMessage` icon_url overrides.
 
@@ -226,7 +267,7 @@ def icons(out_dir: Path) -> Path:
 
     cache = Path("tmp")
     cache.mkdir(exist_ok=True)
-    bases = {"gh": solid_mark(cache), **{org.lower(): org_avatar(cache, org) for org in AVATAR_ORGS}}
+    bases = {"gh": fit_upleft(*trim_content(solid_mark(cache))), **{org.lower(): icon_base(cache, org) for org in AVATAR_ORGS}}
     for slug, base in bases.items():
         for kind, ch in KIND_EMOJI.items():
             add_badge(base, ch).convert("RGB").resize((512, 512), Image.LANCZOS).save(out_dir / f"{slug}-{kind}.png")
