@@ -38,6 +38,19 @@ def test_render_event_running_totals():
     )
 
 
+def test_render_event_slack_mention():
+    assert render_event(ev(5, "2026-08-06T12:00:00Z", "star", "Open-Athena/Kelp", "ryan-williams"), count=13, slack_user="U0922LQRRM0") == (
+        "<https://github.com/ryan-williams|ryan-williams> (<@U0922LQRRM0>) starred <https://github.com/Open-Athena/Kelp|Open-Athena/Kelp> · 2026-08-06 12:00Z · 13 :star:"
+    )
+
+
+def test_build_messages_user_map():
+    events = [ev(50, "2026-08-06T12:00:00Z", "star", "Open-Athena/Kelp", "ryan-williams")]
+    assert build_messages(events, ("Open-Athena",), user_map={"ryan-williams": "U0922LQRRM0"}) == [
+        EventMsg(id=50, date="2026-08-06", content="<https://github.com/ryan-williams|ryan-williams> (<@U0922LQRRM0>) starred <https://github.com/Open-Athena/Kelp|Open-Athena/Kelp> · 2026-08-06 12:00Z"),
+    ]
+
+
 def test_matches():
     match = ("Open-Athena", "marin-community")
     assert matches("Open-Athena", match) is True

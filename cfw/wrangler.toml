@@ -25,6 +25,8 @@ FULL_SWEEP_HOUR = "8"
 # Target prefixes whose events get posted to Slack (SLACK_BOT_TOKEN secret + these two must all be set)
 SLACK_CHANNEL_ID = "C0BKZUV1SKH"
 SLACK_MATCHES_JSON = '["Open-Athena","marin-community"]'
+# GH login → OA Slack user id; known actors get an (<@U…>) mention after their GH link
+SLACK_USER_MAP_JSON = '{"ryan-williams":"U0922LQRRM0"}'
 
 [observability]
 enabled = true

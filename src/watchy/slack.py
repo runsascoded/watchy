@@ -28,11 +28,12 @@ def matches(target: str, match: tuple[str, ...]) -> bool:
     return any(target == m or target.startswith(f"{m}/") for m in match)
 
 
-def render_event(e: dict, count: Optional[int] = None) -> str:
+def render_event(e: dict, count: Optional[int] = None, slack_user: Optional[str] = None) -> str:
     verb, unit = KINDS[e["kind"]]
     login, target, ts = e["login"], e["target"], e["ts"]
     date, hhmm = ts[:10], ts[11:16]
-    base = f"<https://github.com/{login}|{login}> {verb} <https://github.com/{target}|{target}> · {date} {hhmm}Z"
+    who = f"<https://github.com/{login}|{login}>" + (f" (<@{slack_user}>)" if slack_user else "")
+    base = f"{who} {verb} <https://github.com/{target}|{target}> · {date} {hhmm}Z"
     return base if count is None else f"{base} · {count:,} {unit}"
 
 
@@ -51,6 +52,7 @@ def build_messages(
     events: list[dict],
     match: tuple[str, ...],
     counts: Optional[dict[str, int]] = None,
+    user_map: Optional[dict[str, str]] = None,
 ) -> list[EventMsg]:
     """Matching events as desired messages, in event-time order.
 
@@ -60,9 +62,15 @@ def build_messages(
 
     ``counts`` maps target → current total (repo stars / org followers) for the
     running-total suffix; targets absent from it render without the suffix.
+    ``user_map`` maps GH login → Slack user id: known actors get an ``(<@U…>)``
+    mention appended to their GH link.
     """
     return [
-        EventMsg(id=e["id"], date=e["ts"][:10], content=render_event(e, (counts or {}).get(e["target"])))
+        EventMsg(
+            id=e["id"],
+            date=e["ts"][:10],
+            content=render_event(e, (counts or {}).get(e["target"]), (user_map or {}).get(e["login"])),
+        )
         for e in sorted((e for e in events if matches(e["target"], match)), key=lambda e: (e["ts"], e["id"]))
     ]
 

@@ -26,11 +26,12 @@ interface EventRow {
   login: string
 }
 
-export function renderEvent(e: EventRow, count?: number): string {
+export function renderEvent(e: EventRow, count?: number, slackUser?: string): string {
   const { verb, unit } = KINDS[e.kind]
   const date = e.ts.slice(0, 10)
   const hhmm = e.ts.slice(11, 16)
-  const base = `<https://github.com/${e.login}|${e.login}> ${verb} <https://github.com/${e.target}|${e.target}> · ${date} ${hhmm}Z`
+  const who = `<https://github.com/${e.login}|${e.login}>` + (slackUser ? ` (<@${slackUser}>)` : '')
+  const base = `${who} ${verb} <https://github.com/${e.target}|${e.target}> · ${date} ${hhmm}Z`
   return count == null ? base : `${base} · ${count.toLocaleString('en-US')} ${unit}`
 }
 
@@ -45,6 +46,7 @@ export async function syncSlack(env: Env): Promise<number> {
   if (!env.SLACK_BOT_TOKEN || !env.SLACK_CHANNEL_ID || !env.SLACK_MATCHES_JSON) return 0
   const matches: string[] = JSON.parse(env.SLACK_MATCHES_JSON)
   if (!matches.length) return 0
+  const userMap: Record<string, string> = JSON.parse(env.SLACK_USER_MAP_JSON || '{}')
 
   const where = matches.map(() => '(e.target = ? OR e.target LIKE ?)').join(' OR ')
   const binds = matches.flatMap(m => [m, `${m}/%`])
@@ -72,7 +74,7 @@ export async function syncSlack(env: Env): Promise<number> {
       },
       body: JSON.stringify({
         channel: env.SLACK_CHANNEL_ID,
-        text: renderEvent(e, cnt?.count),
+        text: renderEvent(e, cnt?.count, userMap[e.login]),
         icon_url: iconUrl(e.target, e.kind),
         metadata: { event_type: 'watchy_event', event_payload: { id: e.id, date: e.ts.slice(0, 10) } },
         unfurl_links: false,
