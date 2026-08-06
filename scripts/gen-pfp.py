@@ -88,28 +88,33 @@ def star_arcs(out_dir: Path) -> Path:
                                             f'<polygon points="{star_points(512, 512, 240, 96)}" fill="{GOLD}"/>{arcs}</g>')
 
 
-def octomosaic(out_dir: Path, cols: int, mega_every: int, coverage: int, glyph_scale: float) -> Path:
-    from PIL import Image, ImageDraw, ImageFont
+def gh_mask(out_dir: Path, fill: str = "white") -> "Image.Image":
+    from PIL import Image
 
     mask_svg = out_dir / "gh-mask.svg"
     mask_svg.write_text(
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{S}" height="{S}" viewBox="0 0 24 24">'
-        f'<rect width="24" height="24" fill="black"/><path d="{GH_PATH}" fill="white"/></svg>\n'
+        f'<rect width="24" height="24" fill="black"/><path d="{GH_PATH}" fill="{fill}"/></svg>\n'
     )
     mask_png = out_dir / "gh-mask.png"
     subprocess.run(["rsvg-convert", "-w", str(S), "-h", str(S), "-o", str(mask_png), str(mask_svg)], check=True)
-    mask = Image.open(mask_png).convert("L")
+    return Image.open(mask_png).convert("L")
+
+
+def emoji_glyph(ch: str, px: int) -> "Image.Image":
+    from PIL import Image, ImageDraw, ImageFont
 
     font = ImageFont.truetype("/System/Library/Fonts/Apple Color Emoji.ttc", 160)
+    img = Image.new("RGBA", (320, 320), (0, 0, 0, 0))
+    ImageDraw.Draw(img).text((80, 80), ch, font=font, embedded_color=True)
+    return img.crop(img.getbbox()).resize((px, px), Image.LANCZOS)
 
-    def glyph(ch: str, px: int) -> "Image.Image":
-        img = Image.new("RGBA", (320, 320), (0, 0, 0, 0))
-        ImageDraw.Draw(img).text((80, 80), ch, font=font, embedded_color=True)
-        return img.crop(img.getbbox()).resize((px, px), Image.LANCZOS)
+
+def mosaic(mask: "Image.Image", cell_glyph, cols: int, coverage: int, glyph_scale: float) -> "Image.Image":
+    """Fill mask cells with glyphs; cell_glyph(n) returns the glyph image for the nth placed cell."""
+    from PIL import Image
 
     cell = S // cols
-    gsize = int(cell * glyph_scale)
-    star, mega = glyph("⭐", gsize), glyph("📣", gsize)
     out = Image.new("RGBA", (S, S), BG)
     n = 0
     for gy in range(cols):
@@ -118,8 +123,19 @@ def octomosaic(out_dir: Path, cols: int, mega_every: int, coverage: int, glyph_s
             pts = [(cx, cy), (cx - cell // 3, cy), (cx + cell // 3, cy), (cx, cy - cell // 3), (cx, cy + cell // 3)]
             if sum(mask.getpixel(p) > 128 for p in pts) >= coverage:
                 n += 1
-                off = (cell - gsize) // 2
-                out.alpha_composite(mega if n % mega_every == 0 else star, (gx * cell + off, gy * cell + off))
+                g = cell_glyph(n)
+                off = (cell - g.width) // 2
+                out.alpha_composite(g, (gx * cell + off, gy * cell + off))
+    return out
+
+
+def octomosaic(out_dir: Path, cols: int, mega_every: int, coverage: int, glyph_scale: float) -> Path:
+    from PIL import Image
+
+    mask = gh_mask(out_dir)
+    gsize = int((S // cols) * glyph_scale)
+    star, mega = emoji_glyph("⭐", gsize), emoji_glyph("📣", gsize)
+    out = mosaic(mask, lambda n: mega if n % mega_every == 0 else star, cols, coverage, glyph_scale)
     png = out_dir / f"pfp-octomosaic-{cols}.png"
     out.convert("RGB").save(png)
 
@@ -133,11 +149,97 @@ def octomosaic(out_dir: Path, cols: int, mega_every: int, coverage: int, glyph_s
     return png
 
 
+KIND_EMOJI = {"star": "⭐", "unstar": "💔", "follow": "📣", "unfollow": "🔇"}
+AVATAR_ORGS = ["Open-Athena", "marin-community"]
+
+
+def solid_mark(out_dir: Path) -> "Image.Image":
+    from PIL import Image
+
+    mask = gh_mask(out_dir)
+    out = Image.new("RGBA", (S, S), BG)
+    gold = Image.new("RGBA", (S, S), GOLD)
+    out.paste(gold, (0, 0), mask)
+    return out
+
+
+def add_badge(base: "Image.Image", ch: str) -> "Image.Image":
+    """Composite an emoji badge (on a bg-colored circle) into the bottom-right corner."""
+    from PIL import ImageDraw
+
+    out = base.copy()
+    cx = cy = S - int(S * 0.30)
+    r = int(S * 0.30)
+    ImageDraw.Draw(out).ellipse([cx - r, cy - r, cx + r, cy + r], fill=BG)
+    g = emoji_glyph(ch, int(S * 0.52))
+    out.alpha_composite(g, (cx - g.width // 2, cy - g.height // 2))
+    return out
+
+
+def org_avatar(out_dir: Path, org: str) -> "Image.Image":
+    from PIL import Image
+
+    png = out_dir / f"org-{org}.png"
+    if not png.exists():
+        subprocess.run(["curl", "-fsSL", f"https://github.com/{org}.png?size={S}", "-o", str(png)], check=True)
+    return Image.open(png).convert("RGBA").resize((S, S), Image.LANCZOS)
+
+
+def avatars(out_dir: Path, cols: int, mega_every: int, coverage: int, glyph_scale: float) -> Path:
+    """Per-event-kind avatar candidates for `chat.postMessage` icon_url overrides.
+
+    Styles: mono (mask mosaic of the kind's emoji), badge (solid gold mark + emoji badge),
+    pfp-badge (bot-pfp mixed mosaic + emoji badge), emoji (big emoji on GH-dark),
+    org-<org> (org avatar + emoji badge).
+    """
+    from PIL import Image
+
+    mask = gh_mask(out_dir)
+    gsize = int((S // cols) * glyph_scale)
+    pfp = mosaic(mask, lambda n, star=emoji_glyph("⭐", gsize), mega=emoji_glyph("📣", gsize): mega if n % mega_every == 0 else star,
+                 cols, coverage, glyph_scale)
+    mark = solid_mark(out_dir)
+    bases = {"badge": mark, "pfp-badge": pfp, **{f"org-{org}": org_avatar(out_dir, org) for org in AVATAR_ORGS}}
+
+    for kind, ch in KIND_EMOJI.items():
+        variants = {
+            "mono": mosaic(mask, lambda n, g=emoji_glyph(ch, gsize): g, cols, coverage, glyph_scale),
+            "emoji": Image.new("RGBA", (S, S), BG),
+            **{style: add_badge(base, ch) for style, base in bases.items()},
+        }
+        big = emoji_glyph(ch, int(S * 0.82))
+        variants["emoji"].alpha_composite(big, ((S - big.width) // 2, (S - big.height) // 2))
+        for style, img in variants.items():
+            rgb = img.convert("RGB")
+            rgb.save(out_dir / f"avatar-{style}-{kind}.png")
+            rgb.resize((144, 144), Image.LANCZOS).save(out_dir / f"avatar-{style}-{kind}-sm.png")
+    return out_dir
+
+
+def icons(out_dir: Path) -> Path:
+    """Final per-message avatar icons (512px): org avatar + kind badge, plus gold-mark fallback.
+
+    Served at watchy.rbw.sh/icons/<slug>-<kind>.png; the worker keys slug off the event
+    target's org (lowercased), falling back to `gh` for unmatched orgs.
+    """
+    from PIL import Image
+
+    cache = Path("tmp")
+    cache.mkdir(exist_ok=True)
+    bases = {"gh": solid_mark(cache), **{org.lower(): org_avatar(cache, org) for org in AVATAR_ORGS}}
+    for slug, base in bases.items():
+        for kind, ch in KIND_EMOJI.items():
+            add_badge(base, ch).convert("RGB").resize((512, 512), Image.LANCZOS).save(out_dir / f"{slug}-{kind}.png")
+    return out_dir
+
+
 VARIANTS = {
     "eye-star": lambda out_dir, **kw: eye_star(out_dir),
     "telescope": lambda out_dir, **kw: telescope(out_dir),
     "star-arcs": lambda out_dir, **kw: star_arcs(out_dir),
     "octomosaic": lambda out_dir, **kw: octomosaic(out_dir, **kw),
+    "avatars": lambda out_dir, **kw: avatars(out_dir, **kw),
+    "icons": lambda out_dir, **kw: icons(out_dir),
 }
 
 
@@ -156,7 +258,7 @@ def main(cols: int, glyph_scale: float, mega_every: int, out_dir: str, coverage:
         fn = VARIANTS.get(name)
         if fn is None:
             raise SystemExit(f"unknown variant {name!r}; choose from {', '.join(VARIANTS)}")
-        kw = dict(cols=cols, mega_every=mega_every, coverage=coverage, glyph_scale=glyph_scale) if name == "octomosaic" else {}
+        kw = dict(cols=cols, mega_every=mega_every, coverage=coverage, glyph_scale=glyph_scale) if name in ("octomosaic", "avatars") else {}
         print(fn(out, **kw))
 
 
