@@ -88,6 +88,31 @@ def test_build_messages_counts_suffix():
     ]
 
 
+def test_actor_login():
+    from watchy.slack import actor_login
+
+    assert actor_login(":star: <https://github.com/postylem|postylem> starred <https://github.com/Open-Athena/Kelp|Open-Athena/Kelp> · 2026-07-28 16:01Z") == "postylem"
+    assert actor_login("<https://github.com/dlwh|dlwh> followed <https://github.com/marin-community|marin-community> · 2026-08-06 12:00Z · 126 :mega:") == "dlwh"
+    assert actor_login("no links here") is None
+
+
+def test_add_mention():
+    from watchy.slack import add_mention
+
+    # v1-era (emoji-prefixed) text gets the mention after the actor link
+    assert add_mention(
+        ":star: <https://github.com/dlwh|dlwh> starred <https://github.com/marin-community/marin|marin-community/marin> · 2026-07-01 10:00Z",
+        "dlwh", "U09CB26C44Q",
+    ) == ":star: <https://github.com/dlwh|dlwh> (<@U09CB26C44Q>) starred <https://github.com/marin-community/marin|marin-community/marin> · 2026-07-01 10:00Z"
+    # already mentioned → None (idempotent)
+    assert add_mention(
+        "<https://github.com/dlwh|dlwh> (<@U09CB26C44Q>) starred <https://github.com/marin-community/marin|marin-community/marin> · 2026-07-01 10:00Z",
+        "dlwh", "U09CB26C44Q",
+    ) is None
+    # actor link absent → None
+    assert add_mention("unrelated text", "dlwh", "U09CB26C44Q") is None
+
+
 def test_event_metadata():
     assert event_metadata(EventMsg(id=42, date="2026-07-28", content="x")) == {
         "event_type": "watchy_event",

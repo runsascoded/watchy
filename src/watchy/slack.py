@@ -6,6 +6,7 @@ no edits, no deletes). Posted-state lives in Slack itself, recovered from
 per-message metadata ``{event_type: watchy_event, event_payload: {id, date}}``.
 """
 
+import re
 from dataclasses import dataclass
 from typing import Callable, Optional
 
@@ -82,6 +83,25 @@ class Posted:
     date: str
     ts: str
     content: str
+
+
+ACTOR_RE = re.compile(r"<https://github\.com/([^/|>]+)\|")
+
+
+def actor_login(content: str) -> Optional[str]:
+    """The acting user's GH login — the first slashless github.com link in any format era."""
+    m = ACTOR_RE.search(content)
+    return m.group(1) if m else None
+
+
+def add_mention(content: str, login: str, user_id: str) -> Optional[str]:
+    """Insert ``(<@user_id>)`` after the actor's GH link; None if already mentioned or no link."""
+    if "(<@" in content:
+        return None
+    link = f"<https://github.com/{login}|{login}>"
+    if link not in content:
+        return None
+    return content.replace(link, f"{link} (<@{user_id}>)", 1)
 
 
 def sync_flat(

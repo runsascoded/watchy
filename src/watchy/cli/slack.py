@@ -82,6 +82,58 @@ def sync(
     )
 
 
+def load_user_map(path: str) -> dict:
+    """SLACK_USER_MAP from wrangler.jsonc (comments stripped — full-line `//` only)."""
+    import json
+    from pathlib import Path
+
+    text = "\n".join(line for line in Path(path).read_text().splitlines() if not line.lstrip().startswith("//"))
+    return json.loads(text)["vars"]["SLACK_USER_MAP"]
+
+
+@slack.command
+@option("-c", "--channel", envvar="SLACK_CHANNEL_ID", required=True, help="Slack channel ID (default: $SLACK_CHANNEL_ID)")
+@option("-f", "--map-file", default="cfw/wrangler.jsonc", help="wrangler config with vars.SLACK_USER_MAP (default: cfw/wrangler.jsonc)")
+@option("-n", "--dry-run", is_flag=True, help="Print would-be edits without editing")
+@option("-p", "--pace", default=0.4, help="Seconds between Slack mutations (default: 0.4)")
+def retag(channel: str, map_file: str, dry_run: bool, pace: float):
+    """Edit posted messages whose actor is in SLACK_USER_MAP to add the ``(<@U…>)`` mention.
+
+    Idempotent (already-mentioned messages are skipped); edits re-send the watchy_event
+    metadata so posted-state recovery is unaffected. Slack does not notify on
+    mention-adding edits.
+    """
+    from time import sleep
+
+    from ..slack import actor_login, add_mention, event_metadata, EventMsg, fetch_posted
+
+    user_map = load_user_map(map_file)
+    client = get_client(channel)
+    posted = sorted(fetch_posted(client, channel), key=lambda p: p.id)
+    n_edited = n_skipped = 0
+    for p in posted:
+        login = actor_login(p.content)
+        uid = user_map.get(login) if login else None
+        new = add_mention(p.content, login, uid) if uid else None
+        if new is None:
+            n_skipped += 1
+            continue
+        err(f"{'would edit' if dry_run else 'editing'} [{p.id}] {new}")
+        if not dry_run:
+            client._request(
+                "chat.update",
+                {
+                    "channel": channel,
+                    "ts": p.ts,
+                    "text": new,
+                    "metadata": event_metadata(EventMsg(id=p.id, date=p.date, content=new)),
+                },
+            )
+            sleep(pace)
+        n_edited += 1
+    err(f"{n_edited} edited, {n_skipped} skipped{' (dry-run)' if dry_run else ''}")
+
+
 @slack.command("list")
 @option("-c", "--channel", envvar="SLACK_CHANNEL_ID", required=True, help="Slack channel ID (default: $SLACK_CHANNEL_ID)")
 def list_cmd(channel: str):
