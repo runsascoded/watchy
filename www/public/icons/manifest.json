@@ -1,0 +1,16 @@
+{
+  "files": [
+    "gh-star.png",
+    "gh-unstar.png",
+    "gh-follow.png",
+    "gh-unfollow.png",
+    "open-athena-star.png",
+    "open-athena-unstar.png",
+    "open-athena-follow.png",
+    "open-athena-unfollow.png",
+    "marin-community-star.png",
+    "marin-community-unstar.png",
+    "marin-community-follow.png",
+    "marin-community-unfollow.png"
+  ]
+}

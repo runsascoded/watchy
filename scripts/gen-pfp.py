@@ -262,12 +262,18 @@ def icons(out_dir: Path) -> Path:
     """
     from PIL import Image
 
+    import json
+
     cache = Path("tmp")
     cache.mkdir(exist_ok=True)
     bases = {"gh": fit_upleft(*trim_content(solid_mark(cache))), **{org.lower(): icon_base(cache, org) for org in AVATAR_ORGS}}
+    files = []
     for slug, base in bases.items():
         for kind, ch in KIND_EMOJI.items():
-            add_badge(base, ch).convert("RGB").resize((512, 512), Image.LANCZOS).save(out_dir / f"{slug}-{kind}.png")
+            name = f"{slug}-{kind}.png"
+            add_badge(base, ch).convert("RGB").resize((512, 512), Image.LANCZOS).save(out_dir / name)
+            files.append(name)
+    (out_dir / "manifest.json").write_text(json.dumps({"files": files}, indent=2) + "\n")
     return out_dir
 
 

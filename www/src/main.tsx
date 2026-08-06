@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createBrowserRouter, Link, Outlet, RouterProvider } from 'react-router-dom'
 import Feed from './pages/Feed'
 import Health from './pages/Health'
+import Icons from './pages/Icons'
 import './index.scss'
 
 const queryClient = new QueryClient()
@@ -16,6 +17,7 @@ function Layout() {
         <nav>
           <Link to="/">Feed</Link>
           <Link to="/health">Health</Link>
+          <Link to="/icons">Icons</Link>
           <a href="https://github.com/runsascoded/watchy">GitHub</a>
         </nav>
       </header>
@@ -30,6 +32,7 @@ const router = createBrowserRouter([
     children: [
       { path: '/', element: <Feed /> },
       { path: '/health', element: <Health /> },
+      { path: '/icons', element: <Icons /> },
     ],
   },
 ])

@@ -88,6 +88,22 @@ a { color: var(--link); text-decoration: none;
   }
 }
 
+.icons {
+  code {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0 .3rem;
+    font-size: .85em;
+  }
+  table {
+    border-collapse: collapse;
+    th { color: var(--dim); font-weight: 500; text-align: left; padding: .3rem .6rem .3rem 0; }
+    td { padding: .3rem .6rem .3rem 0; }
+    img { width: 72px; height: 72px; border-radius: 8px; display: block; }
+  }
+}
+
 .health {
   .cards {
     display: grid;
