@@ -12,16 +12,29 @@ def ev(id: int, ts: str, kind: str, target: str, login: str) -> dict:
 
 def test_render_event_kinds():
     assert render_event(ev(1, "2026-07-28T16:01:43Z", "star", "Open-Athena/Kelp", "postylem")) == (
-        ":star: <https://github.com/postylem|postylem> starred <https://github.com/Open-Athena/Kelp|Open-Athena/Kelp> · 2026-07-28 16:01Z"
+        "<https://github.com/postylem|postylem> starred <https://github.com/Open-Athena/Kelp|Open-Athena/Kelp> · 2026-07-28 16:01Z"
     )
     assert render_event(ev(2, "2026-07-13T02:18:21Z", "unstar", "ryan-williams/git-helpers", "zhangkejiang")) == (
-        ":broken_heart: <https://github.com/zhangkejiang|zhangkejiang> unstarred <https://github.com/ryan-williams/git-helpers|ryan-williams/git-helpers> · 2026-07-13 02:18Z"
+        "<https://github.com/zhangkejiang|zhangkejiang> unstarred <https://github.com/ryan-williams/git-helpers|ryan-williams/git-helpers> · 2026-07-13 02:18Z"
     )
     assert render_event(ev(3, "2026-07-24T01:00:28Z", "follow", "ryan-williams", "chrisipanaque")) == (
-        ":mega: <https://github.com/chrisipanaque|chrisipanaque> followed <https://github.com/ryan-williams|ryan-williams> · 2026-07-24 01:00Z"
+        "<https://github.com/chrisipanaque|chrisipanaque> followed <https://github.com/ryan-williams|ryan-williams> · 2026-07-24 01:00Z"
     )
     assert render_event(ev(4, "2026-07-20T22:00:00Z", "unfollow", "Open-Athena", "electricmoss")) == (
-        ":mute: <https://github.com/electricmoss|electricmoss> unfollowed <https://github.com/Open-Athena|Open-Athena> · 2026-07-20 22:00Z"
+        "<https://github.com/electricmoss|electricmoss> unfollowed <https://github.com/Open-Athena|Open-Athena> · 2026-07-20 22:00Z"
+    )
+
+
+def test_render_event_running_totals():
+    # star/unstar suffix in repo stars (:star:), follow/unfollow in org followers (:mega:); thousands-separated
+    assert render_event(ev(1, "2026-08-04T22:30:40Z", "star", "marin-community/marin", "XILDLX"), count=1237) == (
+        "<https://github.com/XILDLX|XILDLX> starred <https://github.com/marin-community/marin|marin-community/marin> · 2026-08-04 22:30Z · 1,237 :star:"
+    )
+    assert render_event(ev(2, "2026-08-05T03:12:00Z", "unstar", "marin-community/marin", "somebody"), count=1236) == (
+        "<https://github.com/somebody|somebody> unstarred <https://github.com/marin-community/marin|marin-community/marin> · 2026-08-05 03:12Z · 1,236 :star:"
+    )
+    assert render_event(ev(3, "2026-08-04T12:30:33Z", "follow", "marin-community", "michaelmuchane"), count=89) == (
+        "<https://github.com/michaelmuchane|michaelmuchane> followed <https://github.com/marin-community|marin-community> · 2026-08-04 12:30Z · 89 :mega:"
     )
 
 
@@ -44,9 +57,21 @@ def test_build_messages_filters_and_orders_by_ts():
         ev(20, "2026-07-27T22:52:57Z", "star", "Open-Athena/marin-dna", "alxmrs"),
     ]
     assert build_messages(events, ("Open-Athena", "marin-community")) == [
-        EventMsg(id=30, date="2026-07-27", content=":star: <https://github.com/backdated|backdated> starred <https://github.com/marin-community/marin|marin-community/marin> · 2026-07-27 01:00Z"),
-        EventMsg(id=20, date="2026-07-27", content=":star: <https://github.com/alxmrs|alxmrs> starred <https://github.com/Open-Athena/marin-dna|Open-Athena/marin-dna> · 2026-07-27 22:52Z"),
-        EventMsg(id=40, date="2026-07-28", content=":star: <https://github.com/postylem|postylem> starred <https://github.com/Open-Athena/Kelp|Open-Athena/Kelp> · 2026-07-28 16:01Z"),
+        EventMsg(id=30, date="2026-07-27", content="<https://github.com/backdated|backdated> starred <https://github.com/marin-community/marin|marin-community/marin> · 2026-07-27 01:00Z"),
+        EventMsg(id=20, date="2026-07-27", content="<https://github.com/alxmrs|alxmrs> starred <https://github.com/Open-Athena/marin-dna|Open-Athena/marin-dna> · 2026-07-27 22:52Z"),
+        EventMsg(id=40, date="2026-07-28", content="<https://github.com/postylem|postylem> starred <https://github.com/Open-Athena/Kelp|Open-Athena/Kelp> · 2026-07-28 16:01Z"),
+    ]
+
+
+def test_build_messages_counts_suffix():
+    events = [ev(40, "2026-07-28T16:01:43Z", "star", "Open-Athena/Kelp", "postylem")]
+    counts = {"Open-Athena/Kelp": 12}
+    assert build_messages(events, ("Open-Athena",), counts=counts) == [
+        EventMsg(id=40, date="2026-07-28", content="<https://github.com/postylem|postylem> starred <https://github.com/Open-Athena/Kelp|Open-Athena/Kelp> · 2026-07-28 16:01Z · 12 :star:"),
+    ]
+    # target absent from counts → no suffix
+    assert build_messages(events, ("Open-Athena",), counts={}) == [
+        EventMsg(id=40, date="2026-07-28", content="<https://github.com/postylem|postylem> starred <https://github.com/Open-Athena/Kelp|Open-Athena/Kelp> · 2026-07-28 16:01Z"),
     ]
 
 

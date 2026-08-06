@@ -13,11 +13,13 @@ EVENT_TYPE = "watchy_event"
 
 # Shortcodes, not literal emoji: Slack normalizes literals to shortcodes in stored
 # message text, so literals would make read-back never match desired (perma-diff).
-KIND_VERBS = {
-    "star": (":star:", "starred"),
-    "unstar": (":broken_heart:", "unstarred"),
-    "follow": (":mega:", "followed"),
-    "unfollow": (":mute:", "unfollowed"),
+# The event kind is carried by the per-message avatar (icon_url), not a leading emoji;
+# ``unit`` is the running-total suffix's emoji (repo star count vs org follower count).
+KINDS = {
+    "star": ("starred", ":star:"),
+    "unstar": ("unstarred", ":star:"),
+    "follow": ("followed", ":mega:"),
+    "unfollow": ("unfollowed", ":mega:"),
 }
 
 
@@ -26,11 +28,12 @@ def matches(target: str, match: tuple[str, ...]) -> bool:
     return any(target == m or target.startswith(f"{m}/") for m in match)
 
 
-def render_event(e: dict) -> str:
-    emoji, verb = KIND_VERBS[e["kind"]]
+def render_event(e: dict, count: Optional[int] = None) -> str:
+    verb, unit = KINDS[e["kind"]]
     login, target, ts = e["login"], e["target"], e["ts"]
     date, hhmm = ts[:10], ts[11:16]
-    return f"{emoji} <https://github.com/{login}|{login}> {verb} <https://github.com/{target}|{target}> · {date} {hhmm}Z"
+    base = f"<https://github.com/{login}|{login}> {verb} <https://github.com/{target}|{target}> · {date} {hhmm}Z"
+    return base if count is None else f"{base} · {count:,} {unit}"
 
 
 @dataclass
@@ -44,15 +47,22 @@ def event_metadata(m: EventMsg) -> dict:
     return {"event_type": EVENT_TYPE, "event_payload": {"id": m.id, "date": m.date}}
 
 
-def build_messages(events: list[dict], match: tuple[str, ...]) -> list[EventMsg]:
+def build_messages(
+    events: list[dict],
+    match: tuple[str, ...],
+    counts: Optional[dict[str, int]] = None,
+) -> list[EventMsg]:
     """Matching events as desired messages, in event-time order.
 
     Flat messages never reposition, so the sort key only shapes each batch's
     posting order — ``(ts, id)`` reads chronologically (``id`` alone would
     replay insertion order, e.g. bootstrap batches grouped repo-by-repo).
+
+    ``counts`` maps target → current total (repo stars / org followers) for the
+    running-total suffix; targets absent from it render without the suffix.
     """
     return [
-        EventMsg(id=e["id"], date=e["ts"][:10], content=render_event(e))
+        EventMsg(id=e["id"], date=e["ts"][:10], content=render_event(e, (counts or {}).get(e["target"])))
         for e in sorted((e for e in events if matches(e["target"], match)), key=lambda e: (e["ts"], e["id"]))
     ]
 
