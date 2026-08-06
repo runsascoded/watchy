@@ -1,4 +1,5 @@
 import { collect, type CollectResult, type Env } from './collect'
+import { enrichActors } from './actors'
 import { maybeAlert } from './alerts'
 import { sendPushover } from './pushover'
 import { syncSlack } from './slack'
@@ -32,6 +33,12 @@ async function runCollection(env: Env, fullSweep: boolean): Promise<CollectResul
     if (slackPosted) console.log(`slack: posted ${slackPosted} event(s)`)
   } catch (e) {
     console.error('syncSlack failed:', e)
+  }
+  try {
+    const enriched = await enrichActors(env)
+    if (enriched) console.log(`actors: enriched ${enriched}`)
+  } catch (e) {
+    console.error('enrichActors failed:', e)
   }
   console.log(JSON.stringify({ runId, ...result }))
   return result
@@ -100,6 +107,22 @@ async function apiCounts(url: URL, env: Env): Promise<Response> {
   return json({ target, counts: results })
 }
 
+/** Enriched actors behind posted events, follower-sorted, with posted-activity rollups. */
+async function apiActors(url: URL, env: Env): Promise<Response> {
+  const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '500', 10), 2000)
+  const { results } = await env.DB
+    .prepare(
+      `SELECT a.*, x.n_events, x.first_ts, x.last_ts FROM actors a
+       JOIN (SELECT e.login, COUNT(*) n_events, MIN(e.ts) first_ts, MAX(e.ts) last_ts
+             FROM events e JOIN slack_posts sp ON sp.event_id = e.id GROUP BY e.login) x
+         ON x.login = a.login
+       ORDER BY a.followers DESC LIMIT ?`,
+    )
+    .bind(limit)
+    .all()
+  return json({ actors: results })
+}
+
 /** One-round-trip pipeline snapshot for the FE /health page (ctbk pattern). */
 async function apiHealth(env: Env): Promise<Response> {
   const [runs, eventCounts, latestEvent, starState, followState] = await env.DB.batch([
@@ -156,6 +179,7 @@ export default {
     if (path === '/api/events') return apiEvents(url, env)
     if (path === '/api/targets') return apiTargets(env)
     if (path === '/api/counts') return apiCounts(url, env)
+    if (path === '/api/actors') return apiActors(url, env)
     if (path === '/api/status') return apiStatus(env)
     if (path === '/api/health') return apiHealth(env)
 
@@ -182,7 +206,7 @@ export default {
     }
 
     return new Response(
-      'watchy: /api/events, /api/targets, /api/counts?target=, /api/status, /check, /test-pushover\n',
+      'watchy: /api/events, /api/targets, /api/counts?target=, /api/actors, /api/status, /check, /test-pushover\n',
       { status: path === '/' ? 200 : 404 },
     )
   },
