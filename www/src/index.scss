@@ -158,12 +158,28 @@ a { color: var(--link); text-decoration: none;
 .tt { z-index: 20; background: var(--card); border: 1px solid var(--border); border-radius: 6px;
   padding: .3rem .55rem; font-size: .78rem; box-shadow: 0 2px 8px rgb(0 0 0 / .25); max-width: 26rem; }
 
-.runs-grid { display: flex; flex-wrap: wrap; gap: 3px; margin: .6rem 0;
-  .cell { font-size: 13px; line-height: 1; padding: 2px; background: none; border: 1px solid transparent;
-    border-radius: 4px; cursor: pointer;
-    &.sweep { border-color: var(--border); }
-    &.sel { border-color: var(--dim); background: color-mix(in srgb, var(--fg) 8%, transparent); }
+.runs-grid { display: flex; flex-wrap: wrap; gap: 3px; margin: .6rem 0; align-items: center;
+  --ok-cell: light-dark(#9ece9a, #2ea04366);
+  --events-cell: light-dark(#eda100, #e3b341);
+  .cell { width: 13px; height: 13px; padding: 0; border: 1px solid transparent; border-radius: 3px;
+    cursor: pointer; font-size: 9px; font-weight: 700; line-height: 1; display: inline-flex;
+    align-items: center; justify-content: center;
+    &.ok { background: var(--ok-cell); }
+    &.events { background: var(--events-cell); color: #1a1a19; }
+    &.fail { background: var(--error); color: #fff; }
+    &.pending { background: none; border-color: var(--dim); border-style: dashed; }
+    &.sweep { border-color: color-mix(in srgb, var(--fg) 45%, transparent); }
+    &.sel { outline: 2px solid var(--dim); }
   }
+  .boundary { color: var(--dim); font-size: .62rem; padding: 0 .15rem 0 .35rem;
+    border-left: 1px solid var(--border); line-height: 13px; }
+}
+.timeline { position: relative; margin: .4rem 0 1rem;
+  svg { width: 100%; height: auto; display: block; }
+  .axis { stroke: var(--border); stroke-width: 1; }
+  .grid { stroke: var(--border); stroke-width: 1; stroke-dasharray: 2 3; }
+  .tick { fill: var(--dim); font-size: 9px; }
+  .marker { font-size: 11px; cursor: pointer; }
 }
 .run-detail { background: var(--card); border: 1px solid var(--border); border-radius: 8px;
   padding: .7rem 1rem; margin: .6rem 0; font-size: .85rem;
