@@ -18,9 +18,9 @@ Vision (RW, 2026-08-07): an auth-walled variant of watchy.rbw.sh — same event 
 3. **Auth wall** — following the `$oa/marin-gcs-usage` precedent (gcs.oa.dev): CF Access app in the **Open Athena CF account**, edge-gating the hostname; app code stays coarse (no in-app JWT validation). applitrack's app-level OAuth+roles is more than we need.
    - ✅ CFP project **watchy-internal** created + deployed in the OA account (internal build); `watchy.oa.dev` registered as its custom domain (pending DNS).
    - **Dashboard runbook (RW — deploy token lacks zone + Zero Trust perms)**, OA CF account:
-     1. DNS: `oa.dev` zone → add CNAME `watchy` → `watchy-internal.pages.dev`, proxied. (Activates the pending custom domain.)
+     1. ✅ DNS: `oa.dev` zone → CNAME `watchy` → `watchy-internal.pages.dev`, proxied (2026-08-07; domain validated + serving within ~2min).
      2. Zero Trust → Access → Applications → Add self-hosted: name **watchy**, domains `watchy.oa.dev` **and** `watchy-internal.pages.dev` (the pages.dev URL is otherwise publicly reachable), policy = clone of "GCS usage": allow email-domain `openathena.ai` (+ external whitelist as needed).
-   - ⚠️ Until step 2, `watchy-internal.pages.dev` is up and ungated (obscure URL, public-GH data only — but do the Access app promptly).
+   - ⚠️ Until step 2, `watchy.oa.dev` and `watchy-internal.pages.dev` are up and ungated (public-GH data only — but do the Access app promptly).
    - Public watchy.rbw.sh keeps feed/health/icons; AR (and later summaries) internal-only.
    - **Variant scoping** ✅ — build-time `www/src/scope.ts`: `inScope(target)` ⟺ (owner ∈ {Open-Athena, marin-community}) === `VITE_INTERNAL`. watchy.oa.dev shows only OA/marin targets, watchy.rbw.sh only personal ones (feed, graphs incl. defaults, activity timeline). Health cards + runs grid stay pipeline-global (shared worker). Internal header/tab badge "· OA".
 4. **Plots** ✅ — `/graphs` (public, both deployments): star-history-style step charts over `/api/series` (events-cumsum anchored to current totals — reaches 2022, far past the `counts` cutover), crosshair + legend values, target pickers with stable color slots (validated dataviz palette).
