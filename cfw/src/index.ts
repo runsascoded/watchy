@@ -214,6 +214,14 @@ export default {
     if (path === '/api/series') return apiSeries(url, env)
     if (path === '/api/status') return apiStatus(env)
     if (path === '/api/health') return apiHealth(env)
+    if (path === '/api/runs') {
+      const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '200', 10), 1000)
+      const { results } = await env.DB
+        .prepare('SELECT id, started_at, finished_at, ok, n_events, error, alerted, full_sweep, n_repos, n_skipped FROM runs ORDER BY id DESC LIMIT ?')
+        .bind(limit)
+        .all()
+      return json({ now: new Date().toISOString(), runs: results })
+    }
     if (path === '/api/summaries') {
       const { results } = await env.DB
         .prepare('SELECT week_start, created_at, text, stats, slack_ts FROM summaries ORDER BY week_start DESC LIMIT 12')

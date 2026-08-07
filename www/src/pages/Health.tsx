@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { autoUpdate, flip, offset, shift, useFloating } from '@floating-ui/react'
 import { get, type Health as HealthData, type Run } from '../api'
 
 function ago(iso: string, now: string): string {
@@ -14,6 +16,79 @@ function duration(r: Run): string {
   return `${Math.round((Date.parse(r.finished_at) - Date.parse(r.started_at)) / 1000)}s`
 }
 
+function cellIcon(r: Run): string {
+  if (r.ok === 0) return '❌'
+  if (r.ok == null) return '⏳'
+  if ((r.n_events ?? 0) > 0) return '⭐'
+  return '✅'
+}
+
+function runSummary(r: Run, now: string): string {
+  const parts = [
+    `run ${r.id}`,
+    ago(r.started_at, now),
+    duration(r),
+    `${r.n_repos ?? '?'} repo${r.n_repos === 1 ? '' : 's'}`,
+  ]
+  if (r.n_events) parts.push(`${r.n_events} event${r.n_events === 1 ? '' : 's'}`)
+  if (r.n_skipped) parts.push(`${r.n_skipped} skipped`)
+  if (r.full_sweep) parts.push('full sweep')
+  if (r.error) parts.push(r.error)
+  return parts.join(' · ')
+}
+
+/** Sea-of-✅ tick grid: one cell per run, floating tooltip on hover, details pane on click. */
+function RunsGrid({ now }: { now: string }) {
+  const { data } = useQuery({
+    queryKey: ['runs'],
+    queryFn: () => get<{ now: string; runs: Run[] }>('/api/runs?limit=432'),
+    refetchInterval: 60_000,
+  })
+  const [hovered, setHovered] = useState<Run | null>(null)
+  const [selected, setSelected] = useState<Run | null>(null)
+  const { refs, floatingStyles } = useFloating({
+    open: hovered != null,
+    placement: 'top',
+    middleware: [offset(6), flip(), shift({ padding: 4 })],
+    whileElementsMounted: autoUpdate,
+  })
+  if (!data) return <p className="dim">loading…</p>
+  const t = data.now ?? now
+
+  return (
+    <>
+      <div className="runs-grid" onMouseLeave={() => setHovered(null)}>
+        {data.runs.map(r => (
+          <button
+            key={r.id}
+            className={`cell${r.full_sweep ? ' sweep' : ''}${selected?.id === r.id ? ' sel' : ''}`}
+            onMouseEnter={e => { refs.setReference(e.currentTarget); setHovered(r) }}
+            onClick={() => setSelected(selected?.id === r.id ? null : r)}
+          >
+            {cellIcon(r)}
+          </button>
+        ))}
+      </div>
+      {hovered && (
+        <div ref={refs.setFloating} style={floatingStyles} className="tt">{runSummary(hovered, t)}</div>
+      )}
+      {selected && (
+        <div className="run-detail">
+          <h4>run {selected.id} {cellIcon(selected)}</h4>
+          <dl>
+            <dt>started</dt><dd>{selected.started_at} ({ago(selected.started_at, t)})</dd>
+            <dt>duration</dt><dd>{duration(selected)}</dd>
+            <dt>events</dt><dd>{selected.n_events ?? ''}</dd>
+            <dt>repos</dt><dd>{selected.n_repos ?? ''} fetched, {selected.n_skipped ?? 0} skipped</dd>
+            {selected.full_sweep ? <><dt>sweep</dt><dd>full</dd></> : null}
+            {selected.error && <><dt>error</dt><dd className="error">{selected.error}{selected.alerted ? ' 📟' : ''}</dd></>}
+          </dl>
+        </div>
+      )}
+    </>
+  )
+}
+
 export default function Health() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['health'],
@@ -23,7 +98,7 @@ export default function Health() {
   if (isLoading) return <p className="dim">loading…</p>
   if (error || !data) return <p className="error">{String(error)}</p>
 
-  const { now, lastOk, consecutiveFailures, runs, events, state } = data
+  const { now, lastOk, consecutiveFailures, events, state } = data
   const stale = lastOk ? Date.parse(now) - Date.parse(lastOk.finished_at!) > 3 * 3_600_000 : true
   const status = consecutiveFailures > 0 ? '⚠️ failing' : stale ? '⚠️ stale' : '✅ healthy'
 
@@ -62,30 +137,8 @@ export default function Health() {
           <p>{state.follows} follows across {state.targets} targets</p>
         </div>
       </div>
-      <h3>Recent runs</h3>
-      <table className="runs">
-        <thead>
-          <tr>
-            <th>id</th><th>started</th><th>dur</th><th>ok</th><th>events</th>
-            <th>repos</th><th>skipped</th><th>sweep</th><th>error</th>
-          </tr>
-        </thead>
-        <tbody>
-          {runs.map(r => (
-            <tr key={r.id} className={r.ok === 0 ? 'failed' : ''}>
-              <td>{r.id}</td>
-              <td title={r.started_at}>{ago(r.started_at, now)}</td>
-              <td>{duration(r)}</td>
-              <td>{r.ok === 1 ? '✅' : r.ok === 0 ? '❌' : '…'}</td>
-              <td className="num">{r.n_events ?? ''}</td>
-              <td className="num">{r.n_repos ?? ''}</td>
-              <td className="num">{r.n_skipped ?? ''}</td>
-              <td>{r.full_sweep ? 'full' : ''}</td>
-              <td className="error">{r.error ?? ''}{r.alerted ? ' 📟' : ''}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <h3>Recent runs <span className="dim">(newest first; ⭐ = tick with events; click for detail)</span></h3>
+      <RunsGrid now={now} />
     </div>
   )
 }

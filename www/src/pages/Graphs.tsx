@@ -2,33 +2,34 @@ import { useMemo, useRef, useState } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { get, type TargetCount } from '../api'
 
-const { max, min, round } = Math
+const { max, min } = Math
 
 const W = 800
 const H = 260
 const PAD = { l: 44, r: 12, t: 8, b: 22 }
 const N_SLOTS = 7
-const DEFAULT_SEL = 4
 
 interface Point { ts: string; count: number }
+interface Series { target: string; slot: number; label: string; owner: string; points: Point[] }
 
-function fmtDate(t: number): string {
-  return new Date(t).toISOString().slice(0, 10)
+const fmtDate = (t: number) => new Date(t).toISOString().slice(0, 10)
+const owner = (target: string) => target.split('/')[0]
+
+function Favicon({ login }: { login: string }) {
+  return <img className="favicon" src={`https://github.com/${login}.png?size=32`} alt="" />
 }
 
 function yTicks(yMax: number): number[] {
-  const step = [1, 2, 5].map(s => s * 10 ** max(0, String(round(yMax / 4)).length - 1)).find(s => yMax / s <= 5) ?? 1
+  const step = [1, 2, 5].map(s => s * 10 ** max(0, String(Math.round(yMax / 4)).length - 1)).find(s => yMax / s <= 5) ?? 1
   const ticks = []
   for (let v = 0; v <= yMax; v += step) ticks.push(v)
   return ticks
 }
 
-/** Step-after multi-series line chart with crosshair + tooltip. */
-function SeriesChart({ title, series }: {
-  title: string
-  series: { name: string; slot: number; points: Point[] }[]
-}) {
-  const [hover, setHover] = useState<number | null>(null) // hovered time (ms)
+/** Step-after multi-series line chart; values live in a cursor-following hover box (HB). */
+function SeriesChart({ series }: { series: Series[] }) {
+  const [hover, setHover] = useState<{ t: number; cx: number; cy: number } | null>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const loaded = series.filter(s => s.points.length)
 
@@ -46,15 +47,12 @@ function SeriesChart({ title, series }: {
 
   function path(points: Point[]): string {
     let d = ''
-    let prevY: number | null = null
     for (const p of points) {
-      const x = px(Date.parse(p.ts))
-      const y = py(p.count)
-      d += d ? `H${x.toFixed(1)}V${y.toFixed(1)}` : `M${x.toFixed(1)},${y.toFixed(1)}`
-      prevY = y
+      const x = px(Date.parse(p.ts)).toFixed(1)
+      const y = py(p.count).toFixed(1)
+      d += d ? `H${x}V${y}` : `M${x},${y}`
     }
-    if (prevY != null) d += `H${px(x1).toFixed(1)}`
-    return d
+    return d ? d + `H${px(x1).toFixed(1)}` : d
   }
 
   function valueAt(points: Point[], t: number): number | null {
@@ -68,9 +66,14 @@ function SeriesChart({ title, series }: {
 
   function onMove(e: React.MouseEvent) {
     const rect = svgRef.current!.getBoundingClientRect()
+    const wrap = wrapRef.current!.getBoundingClientRect()
     const fx = ((e.clientX - rect.left) / rect.width) * W
     if (fx < PAD.l || fx > W - PAD.r) return setHover(null)
-    setHover(x0 + ((fx - PAD.l) / (W - PAD.l - PAD.r)) * (x1 - x0))
+    setHover({
+      t: x0 + ((fx - PAD.l) / (W - PAD.l - PAD.r)) * (x1 - x0),
+      cx: e.clientX - wrap.left,
+      cy: e.clientY - wrap.top,
+    })
   }
 
   const months = useMemo(() => {
@@ -82,24 +85,18 @@ function SeriesChart({ title, series }: {
       all.push(d.getTime())
       d.setUTCMonth(d.getUTCMonth() + 1)
     }
-    // Thin to ≤10 labels, keeping January (year boundaries) aligned when stepping by 3/6/12
     const step = [1, 2, 3, 6, 12].find(s => all.length / s <= 10) ?? 12
     return all.filter(t => new Date(t).getUTCMonth() % step === (step > 2 ? 0 : new Date(all[0]).getUTCMonth() % step))
   }, [x0, x1])
 
+  const hb = hover && loaded
+    .map(s => ({ ...s, v: valueAt(s.points, hover.t) }))
+    .filter(s => s.v != null)
+    .sort((a, b) => b.v! - a.v!)
+  const hbRight = hover != null && hover.cx > (wrapRef.current?.clientWidth ?? W) / 2
+
   return (
-    <div className="chart">
-      <h2>{title}</h2>
-      <div className="legend">
-        {series.map(s => (
-          <span key={s.name} className="li">
-            <span className="swatch" style={{ background: `var(--s${s.slot + 1})` }} />
-            {s.name}
-            {hover != null && s.points.length > 0 && <b>{valueAt(s.points, hover)?.toLocaleString() ?? ''}</b>}
-          </span>
-        ))}
-        {hover != null && <span className="li dim">{fmtDate(hover)}</span>}
-      </div>
+    <div className="chart-wrap" ref={wrapRef}>
       <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
         {yTicks(yMax).map(v => (
           <g key={v}>
@@ -111,63 +108,112 @@ function SeriesChart({ title, series }: {
           <text key={t} className="tick" x={px(t)} y={H - 6} textAnchor="middle">{new Date(t).toISOString().slice(0, 7)}</text>
         ))}
         {loaded.map(s => (
-          <path key={s.name} d={path(s.points)} fill="none" strokeWidth={2} stroke={`var(--s${s.slot + 1})`} />
+          <path key={s.target} d={path(s.points)} fill="none" strokeWidth={2} stroke={`var(--s${s.slot + 1})`} />
         ))}
-        {hover != null && <line className="xhair" x1={px(hover)} x2={px(hover)} y1={PAD.t} y2={H - PAD.b} />}
+        {hover != null && <line className="xhair" x1={px(hover.t)} x2={px(hover.t)} y1={PAD.t} y2={H - PAD.b} />}
       </svg>
+      {hb && hb.length > 0 && (
+        <div className="hb" style={hbRight ? { right: (wrapRef.current!.clientWidth - hover!.cx) + 12, top: hover!.cy + 8 } : { left: hover!.cx + 12, top: hover!.cy + 8 }}>
+          <div className="hb-date">{fmtDate(hover!.t)}</div>
+          {hb.map(s => (
+            <div key={s.target} className="hb-row">
+              <span className="swatch" style={{ background: `var(--s${s.slot + 1})` }} />
+              <span className="hb-name">{s.label}</span>
+              <b>{s.v!.toLocaleString()}</b>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
-function Picker({ options, sel, setSel }: {
-  options: { target: string; slot: number }[]
-  sel: Set<string>
-  setSel: (s: Set<string>) => void
-}) {
-  return (
-    <div className="picker">
-      {options.map(o => (
-        <label key={o.target} className={sel.has(o.target) ? 'on' : ''}>
-          <input
-            type="checkbox"
-            checked={sel.has(o.target)}
-            disabled={!sel.has(o.target) && sel.size >= N_SLOTS}
-            onChange={e => {
-              const next = new Set(sel)
-              e.target.checked ? next.add(o.target) : next.delete(o.target)
-              setSel(next)
-            }}
-          />
-          <span className="swatch" style={{ background: `var(--s${o.slot + 1})` }} />
-          {o.target}
-        </label>
-      ))}
-    </div>
+/** One section: unified legend (click LI to remove) + filter input to add targets. */
+function Section({ title, all }: { title: string; all: TargetCount[] }) {
+  const [sel, setSel] = useState<Map<string, number>>(
+    () => new Map(all.slice(0, 4).map((t, i) => [t.target, i])),
   )
-}
+  const [q, setQ] = useState('')
 
-function useSeries(targets: string[]) {
-  return useQueries({
-    queries: targets.map(t => ({
+  // Basename-only labels when unambiguous across the section's full target list
+  const labels = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const t of all) {
+      const base = t.target.split('/').pop()!
+      counts.set(base, (counts.get(base) ?? 0) + 1)
+    }
+    return new Map(all.map(t => {
+      const base = t.target.split('/').pop()!
+      return [t.target, counts.get(base) === 1 ? base : t.target]
+    }))
+  }, [all])
+
+  const add = (target: string) => {
+    if (sel.size >= N_SLOTS || sel.has(target)) return
+    const used = new Set(sel.values())
+    const slot = [...Array(N_SLOTS).keys()].find(i => !used.has(i))!
+    setSel(new Map(sel).set(target, slot))
+    setQ('')
+  }
+  const remove = (target: string) => {
+    const next = new Map(sel)
+    next.delete(target)
+    setSel(next)
+  }
+
+  const active = [...sel.entries()]
+  const results = useQueries({
+    queries: active.map(([t]) => ({
       queryKey: ['series', t],
       queryFn: () => get<{ series: Point[] }>(`/api/series?target=${encodeURIComponent(t)}`),
       staleTime: 300_000,
     })),
   })
-}
+  const series: Series[] = active.map(([target, slot], i) => ({
+    target,
+    slot,
+    label: labels.get(target) ?? target,
+    owner: owner(target),
+    points: results[i].data?.series ?? [],
+  }))
 
-function Section({ title, all }: { title: string; all: TargetCount[] }) {
-  // Stable color slots: position in the full (count-sorted) list, independent of selection
-  const options = useMemo(() => all.slice(0, N_SLOTS).map((t, i) => ({ target: t.target, slot: i })), [all])
-  const [sel, setSel] = useState<Set<string>>(() => new Set(options.slice(0, DEFAULT_SEL).map(o => o.target)))
-  const active = options.filter(o => sel.has(o.target))
-  const results = useSeries(active.map(o => o.target))
-  const series = active.map((o, i) => ({ name: o.target, slot: o.slot, points: results[i].data?.series ?? [] }))
+  const matches = q
+    ? all.filter(t => !sel.has(t.target) && t.target.toLowerCase().includes(q.toLowerCase())).slice(0, 8)
+    : []
+
   return (
-    <>
-      <SeriesChart title={title} series={series} />
-      <Picker options={options} sel={sel} setSel={setSel} />
-    </>
+    <div className="chart">
+      <h2>{title}</h2>
+      <div className="legend">
+        {series.map(s => (
+          <button key={s.target} className="li" title={`${s.target} — click to remove`} onClick={() => remove(s.target)}>
+            <span className="swatch" style={{ background: `var(--s${s.slot + 1})` }} />
+            <Favicon login={s.owner} />
+            {s.label}
+          </button>
+        ))}
+        <span className="adder">
+          <input
+            placeholder={sel.size >= N_SLOTS ? 'series limit reached' : '+ add…'}
+            disabled={sel.size >= N_SLOTS}
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && matches[0]) add(matches[0].target) }}
+          />
+          {matches.length > 0 && (
+            <div className="matches">
+              {matches.map(t => (
+                <button key={t.target} onClick={() => add(t.target)}>
+                  <Favicon login={owner(t.target)} />
+                  {t.target} <span className="dim">{t.count.toLocaleString()}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </span>
+      </div>
+      <SeriesChart series={series} />
+    </div>
   )
 }
 
