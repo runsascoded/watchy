@@ -2,17 +2,21 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { autoUpdate, flip, offset, shift, useFloating } from '@floating-ui/react'
 import { get, type Event } from '../api'
+import { inScope } from '../scope'
 
 const { max, min, floor } = Math
 
 export const KIND_EMOJI: Record<string, string> = { star: '⭐', unstar: '💔', follow: '📣', unfollow: '🔇' }
 
 const W = 800
-const H = 86
+const H = 150
 const PAD = { l: 8, r: 8, axis: 16 }
 const PLOT_W = W - PAD.l - PAD.r
 const BUCKET_PX = 16
-const MAX_STACK = 3
+// Buckets stack emoji markers up to this; if any visible bucket exceeds it the
+// whole view degrades to a continuous bar chart (discrete stacks stop scaling)
+const MAX_STACK = 6
+const BAR_TOP = 12
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
 
@@ -79,7 +83,9 @@ export default function EventTimeline({ now }: { now: string }) {
   const [domain, setDomain] = useState<[number, number]>([nowMs - 7 * DAY, nowMs])
   const [hovered, setHovered] = useState<Hovered | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
-  const drag = useRef<{ x: number; t0: number; t1: number; moved: boolean } | null>(null)
+  const drag = useRef<{ x: number; t0: number; t1: number } | null>(null)
+  // Survives pointerup (unlike `drag`) so the ensuing click can be suppressed
+  const moved = useRef(false)
   const { refs, floatingStyles } = useFloating({
     open: hovered != null,
     placement: 'top',
@@ -87,7 +93,10 @@ export default function EventTimeline({ now }: { now: string }) {
     whileElementsMounted: autoUpdate,
   })
 
-  const events = useMemo(() => (data?.events ?? []).slice().sort((a, b) => a.ts.localeCompare(b.ts)), [data])
+  const events = useMemo(
+    () => (data?.events ?? []).filter(e => inScope(e.target)).sort((a, b) => a.ts.localeCompare(b.ts)),
+    [data],
+  )
   const minTs = events.length ? Date.parse(events[0].ts) : nowMs - 7 * DAY
 
   const [t0, t1] = domain
@@ -135,14 +144,15 @@ export default function EventTimeline({ now }: { now: string }) {
   }, [visible, t0, t1])
 
   function onPointerDown(e: React.PointerEvent) {
-    drag.current = { x: e.clientX, t0, t1, moved: false }
+    drag.current = { x: e.clientX, t0, t1 }
+    moved.current = false
     ;(e.target as Element).setPointerCapture(e.pointerId)
   }
   function onPointerMove(e: React.PointerEvent) {
     if (!drag.current) return
     const rect = svgRef.current!.getBoundingClientRect()
     const dx = e.clientX - drag.current.x
-    if (Math.abs(dx) > 3) drag.current.moved = true
+    if (Math.abs(dx) > 3) moved.current = true
     const dt = (dx / rect.width) * W / PLOT_W * (drag.current.t1 - drag.current.t0)
     setDomain(clamp(drag.current.t0 - dt, drag.current.t1 - dt))
   }
@@ -151,12 +161,18 @@ export default function EventTimeline({ now }: { now: string }) {
   }
 
   const zoomTo = (evs: Event[]) => {
-    if (drag.current?.moved) return
+    if (moved.current) return
     const a = Date.parse(evs[0].ts)
     const b = Date.parse(evs[evs.length - 1].ts)
     const pad = max((b - a) * 0.5, HOUR)
     setDomain(clamp(a - pad, b + pad))
   }
+
+  const maxCount = max(0, ...buckets.map(b => b.evs.length))
+  const barMode = maxCount > MAX_STACK
+  const barMaxH = H - PAD.axis - BAR_TOP
+  // √ scale: one viral/bootstrap spike shouldn't crush every other bar to the floor
+  const barH = (n: number) => max(2, Math.sqrt(n / maxCount) * barMaxH)
 
   if (!data) return <p className="dim">loading…</p>
 
@@ -182,8 +198,26 @@ export default function EventTimeline({ now }: { now: string }) {
             <text className="tick" x={px(t) + 3} y={H - 4}>{label}</text>
           </g>
         ))}
+        {barMode && (
+          <g>
+            <line className="grid" x1={PAD.l} x2={W - PAD.r} y1={BAR_TOP} y2={BAR_TOP} />
+            <text className="tick" x={PAD.l} y={BAR_TOP - 3}>max {maxCount} (√ scale)</text>
+          </g>
+        )}
         {buckets.map(({ x, evs }) =>
-          evs.length <= MAX_STACK ? (
+          barMode ? (
+            <rect
+              key={`b${x}`}
+              className="bar"
+              x={x - BUCKET_PX / 2 + 1.5}
+              width={BUCKET_PX - 3}
+              y={H - PAD.axis - barH(evs.length)}
+              height={barH(evs.length)}
+              rx={2}
+              onMouseEnter={ev => { refs.setReference(ev.currentTarget as unknown as Element); setHovered({ events: evs }) }}
+              onClick={() => zoomTo(evs)}
+            />
+          ) : (
             evs.map((e, row) => (
               <text
                 key={e.id}
@@ -192,21 +226,11 @@ export default function EventTimeline({ now }: { now: string }) {
                 y={H - PAD.axis - 6 - row * 13}
                 textAnchor="middle"
                 onMouseEnter={ev => { refs.setReference(ev.currentTarget as unknown as Element); setHovered({ events: [e] }) }}
-                onClick={() => { if (!drag.current?.moved) window.open(`https://github.com/${e.login}`, '_blank') }}
+                onClick={() => { if (!moved.current) window.open(`https://github.com/${e.login}`, '_blank') }}
               >
                 {KIND_EMOJI[e.kind]}
               </text>
             ))
-          ) : (
-            <g
-              key={`c${x}`}
-              className="cluster"
-              onMouseEnter={ev => { refs.setReference(ev.currentTarget as unknown as Element); setHovered({ events: evs }) }}
-              onClick={() => zoomTo(evs)}
-            >
-              <circle cx={x} cy={H - PAD.axis - 14} r={min(6 + evs.length / 20, 8)} />
-              <text x={x} y={H - PAD.axis - 11} textAnchor="middle" fontSize={evs.length > 99 ? 7 : 9}>{evs.length}</text>
-            </g>
           ),
         )}
       </svg>

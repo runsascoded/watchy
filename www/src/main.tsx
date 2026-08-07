@@ -7,11 +7,12 @@ import Health from './pages/Health'
 import Icons from './pages/Icons'
 import Graphs from './pages/Graphs'
 import Actors from './pages/Actors'
-
 // Internal-only routes (AR etc.) are compiled in only for the Access-gated
 // deployment (watchy.oa.dev); the public bundle omits them entirely.
-const INTERNAL = import.meta.env.VITE_INTERNAL === '1'
+import { INTERNAL } from './scope'
 import './index.scss'
+
+if (INTERNAL) document.title = 'watchy · OA'
 
 const queryClient = new QueryClient()
 
@@ -19,7 +20,7 @@ function Layout() {
   return (
     <div className="layout">
       <header>
-        <h1><Link to="/">👀 watchy</Link></h1>
+        <h1><Link to="/">👀 watchy</Link>{INTERNAL && <span className="dim"> · OA</span>}</h1>
         <nav>
           <Link to="/">Feed</Link>
           <Link to="/health">Health</Link>

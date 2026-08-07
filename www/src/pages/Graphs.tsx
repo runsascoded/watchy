@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { get, type TargetCount } from '../api'
+import { inScope, owner } from '../scope'
 
-const { max, min } = Math
+const { max, min, floor, log10 } = Math
 
 const W = 800
 const H = 260
@@ -13,14 +14,14 @@ interface Point { ts: string; count: number }
 interface Series { target: string; slot: number; label: string; owner: string; points: Point[] }
 
 const fmtDate = (t: number) => new Date(t).toISOString().slice(0, 10)
-const owner = (target: string) => target.split('/')[0]
 
 function Favicon({ login }: { login: string }) {
   return <img className="favicon" src={`https://github.com/${login}.png?size=32`} alt="" />
 }
 
 function yTicks(yMax: number): number[] {
-  const step = [1, 2, 5].map(s => s * 10 ** max(0, String(Math.round(yMax / 4)).length - 1)).find(s => yMax / s <= 5) ?? 1
+  const mag = 10 ** floor(log10(max(1, yMax / 5)))
+  const step = ([1, 2, 5, 10].find(s => yMax / (s * mag) <= 5) ?? 10) * mag
   const ticks = []
   for (let v = 0; v <= yMax; v += step) ticks.push(v)
   return ticks
@@ -226,8 +227,8 @@ export default function Graphs() {
   if (error || !data) return <p className="error">{String(error)}</p>
   return (
     <div className="graphs">
-      <Section title="Repo stars" all={data.stars} />
-      <Section title="Followers" all={data.follows} />
+      <Section title="Repo stars" all={data.stars.filter(t => inScope(t.target))} />
+      <Section title="Followers" all={data.follows.filter(t => inScope(t.target))} />
       <p className="dim">
         Reconstructed from the event log (6-month backfill), anchored to current totals; hover for values.
       </p>

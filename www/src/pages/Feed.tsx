@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { get, type Event, type TargetCount } from '../api'
+import { inScope } from '../scope'
 
 const KIND_EMOJI: Record<Event['kind'], string> = {
   star: '⭐️',
@@ -32,7 +33,8 @@ export default function Feed() {
   const [target, setTarget] = useState('')
   const [login, setLogin] = useState('')
 
-  const params = new URLSearchParams({ limit: '200' })
+  // Over-fetch since the scope filter drops the other variant's events client-side
+  const params = new URLSearchParams({ limit: '500' })
   if (kind) params.set('kind', kind)
   if (target) params.set('target', target)
   if (login) params.set('login', login)
@@ -46,7 +48,7 @@ export default function Feed() {
     queryFn: () => get<{ stars: TargetCount[]; follows: TargetCount[] }>('/api/targets'),
   })
 
-  const events = data?.events ?? []
+  const events = (data?.events ?? []).filter(e => inScope(e.target))
   const byDay = new Map<string, Event[]>()
   for (const e of events) {
     const d = day(e.ts)
@@ -57,7 +59,7 @@ export default function Feed() {
   const targetOptions = [
     ...(targets?.stars ?? []).map(t => t.target),
     ...(targets?.follows ?? []).map(t => t.target),
-  ]
+  ].filter(inScope)
 
   return (
     <div className="feed">
