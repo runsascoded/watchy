@@ -41,7 +41,7 @@ async function runBatched(db: D1Database, stmts: D1PreparedStatement[]): Promise
  * memory, and writes deltas only. On non-full-sweep runs, repos whose observed
  * `stargazers_count` matches stored state are skipped entirely (count-delta gate).
  */
-export async function collect(env: Env, fullSweep: boolean): Promise<CollectResult> {
+export async function collect(env: Env, fullSweep: boolean, runId: number | null = null): Promise<CollectResult> {
   const db = env.DB
   const targets = env.TARGETS
   const obsTs = new Date().toISOString()
@@ -66,7 +66,7 @@ export async function collect(env: Env, fullSweep: boolean): Promise<CollectResu
   }
 
   const stmts: D1PreparedStatement[] = []
-  const insEvent = db.prepare("INSERT INTO events (ts, kind, target, uid, login, source) VALUES (?, ?, ?, ?, ?, 'live')")
+  const insEvent = db.prepare(`INSERT INTO events (ts, kind, target, uid, login, source, run_id) VALUES (?, ?, ?, ?, ?, 'live', ${runId ?? 'NULL'})`)
   const insStar = db.prepare('INSERT INTO stars (repo, uid, login, starred_at) VALUES (?, ?, ?, ?)')
   const delStar = db.prepare('DELETE FROM stars WHERE repo = ? AND uid = ?')
   const updStarLogin = db.prepare('UPDATE stars SET login = ? WHERE repo = ? AND uid = ?')

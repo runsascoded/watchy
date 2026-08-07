@@ -17,7 +17,7 @@ async function runCollection(env: Env, fullSweep: boolean): Promise<CollectResul
 
   let result: CollectResult
   try {
-    result = await collect(env, fullSweep)
+    result = await collect(env, fullSweep, runId as number)
   } catch (e) {
     result = { ok: false, fullSweep, nEvents: 0, reposFetched: 0, skipped: [], error: (e as Error).message }
   }
@@ -80,7 +80,7 @@ async function apiEvents(url: URL, env: Env): Promise<Response> {
     wheres.push('kind = ?'); binds.push(kind)
   }
   if (login) { wheres.push('login LIKE ?'); binds.push(`%${login}%`) }
-  const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '100'), 500)
+  const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '100'), 5000)
   const offset = parseInt(url.searchParams.get('offset') ?? '0')
   const where = wheres.length ? `WHERE ${wheres.join(' AND ')}` : ''
   // Event-time order, not insertion order: bootstrap star events carry starred_at
@@ -219,8 +219,20 @@ export default {
       const { results } = await env.DB
         .prepare('SELECT id, started_at, finished_at, ok, n_events, error, alerted, full_sweep, n_repos, n_skipped FROM runs ORDER BY id DESC LIMIT ?')
         .bind(limit)
-        .all()
-      return json({ now: new Date().toISOString(), runs: results })
+        .all<{ id: number; n_events: number | null }>()
+      const withEvents = results.filter(r => (r.n_events ?? 0) > 0).map(r => r.id)
+      const evByRun = new Map<number, unknown[]>()
+      if (withEvents.length) {
+        const { results: evs } = await env.DB
+          .prepare(`SELECT run_id, ts, kind, target, login FROM events WHERE run_id IN (${withEvents.map(() => '?').join(',')})`)
+          .bind(...withEvents)
+          .all<{ run_id: number }>()
+        for (const e of evs) {
+          if (!evByRun.has(e.run_id)) evByRun.set(e.run_id, [])
+          evByRun.get(e.run_id)!.push(e)
+        }
+      }
+      return json({ now: new Date().toISOString(), runs: results.map(r => ({ ...r, events: evByRun.get(r.id) ?? [] })) })
     }
     if (path === '/api/summaries') {
       const { results } = await env.DB

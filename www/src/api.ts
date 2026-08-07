@@ -16,6 +16,14 @@ export interface Event {
   sha: string | null
 }
 
+export interface RunEvent {
+  run_id: number
+  ts: string
+  kind: string
+  target: string
+  login: string
+}
+
 export interface Run {
   id: number
   started_at: string
@@ -27,6 +35,7 @@ export interface Run {
   full_sweep: number | null
   n_repos: number | null
   n_skipped: number | null
+  events?: RunEvent[]
 }
 
 export interface Health {
