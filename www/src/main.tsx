@@ -7,7 +7,9 @@ import Health from './pages/Health'
 import Icons from './pages/Icons'
 import Graphs from './pages/Graphs'
 import Actors from './pages/Actors'
-// Internal-only routes (AR etc.) are compiled in only for the Access-gated
+import Access from './pages/Access'
+import { WhoamiChip } from './auth'
+// Internal-only routes (AR etc.) are compiled in only for the internal
 // deployment (watchy.oa.dev); the public bundle omits them entirely.
 import { INTERNAL } from './scope'
 import './index.scss'
@@ -29,6 +31,7 @@ function Layout() {
           {INTERNAL && <Link to="/actors">Actors</Link>}
           <a href="https://github.com/runsascoded/watchy">GitHub</a>
         </nav>
+        {INTERNAL && <WhoamiChip />}
       </header>
       <main><Outlet /></main>
     </div>
@@ -43,7 +46,10 @@ const router = createBrowserRouter([
       { path: '/health', element: <Health /> },
       { path: '/icons', element: <Icons /> },
       { path: '/graphs', element: <Graphs /> },
-      ...(INTERNAL ? [{ path: '/actors', element: <Actors /> }] : []),
+      ...(INTERNAL ? [
+        { path: '/actors', element: <Actors /> },
+        { path: '/access', element: <Access /> },
+      ] : []),
     ],
   },
 ])

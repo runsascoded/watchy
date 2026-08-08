@@ -28,6 +28,8 @@
     },
     // UTC hour of the daily full sweep (bypasses the count-delta gate)
     "FULL_SWEEP_HOUR": "8",
+    // SSO emails allowed to CRUD access grants (specs/auth-gate.md); SESSION_SECRET is a secret
+    "ADMIN_EMAILS": ["ryan.williams@openathena.ai"],
     // Target prefixes whose events get posted to Slack (SLACK_BOT_TOKEN secret + these two must all be set)
     "SLACK_CHANNEL_ID": "C0BKZUV1SKH",
     "SLACK_MATCHES": ["Open-Athena", "marin-community"],

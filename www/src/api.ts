@@ -1,9 +1,18 @@
-// Same-origin only when served by the worker itself (workers.dev); everywhere
-// else — `pnpm dev`, the CFP deployment at watchy.rbw.sh — hit the prod worker
-// cross-origin (ctbk pattern). Override with VITE_API_BASE.
+import { INTERNAL } from './scope'
+
+// Internal build (watchy.oa.dev) is same-origin: /api/* proxies to the worker
+// via a Pages Function so the auth cookie flows (see specs/auth-gate.md); the
+// vite dev server proxies the same paths. Public builds hit the prod worker
+// cross-origin (ctbk pattern) except on workers.dev itself. VITE_API_BASE overrides.
 export const API_BASE =
   import.meta.env.VITE_API_BASE ??
-  (location.hostname.endsWith('.workers.dev') ? '' : 'https://watchy.ryan-0dc.workers.dev')
+  (INTERNAL || location.hostname.endsWith('.workers.dev') ? '' : 'https://watchy.ryan-0dc.workers.dev')
+
+export class ApiError extends Error {
+  constructor(public status: number, path: string) {
+    super(`${path}: ${status}`)
+  }
+}
 
 export interface Event {
   id: number
@@ -57,6 +66,15 @@ export interface TargetCount {
 
 export async function get<T>(path: string): Promise<T> {
   const resp = await fetch(`${API_BASE}${path}`)
-  if (!resp.ok) throw new Error(`${path}: ${resp.status}`)
+  if (!resp.ok) throw new ApiError(resp.status, path)
+  return resp.json()
+}
+
+export async function post<T>(path: string, body?: unknown, method = 'POST'): Promise<T> {
+  const resp = await fetch(`${API_BASE}${path}`, {
+    method,
+    ...(body !== undefined ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {}),
+  })
+  if (!resp.ok) throw new ApiError(resp.status, path)
   return resp.json()
 }

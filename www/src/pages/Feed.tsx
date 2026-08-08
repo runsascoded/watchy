@@ -1,5 +1,5 @@
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { boolParam, stringParam, useUrlState } from 'use-prms'
 import { get, type Event, type TargetCount } from '../api'
 import { inScope } from '../scope'
 
@@ -29,9 +29,11 @@ function time(ts: string): string {
 }
 
 export default function Feed() {
-  const [kind, setKind] = useState('')
-  const [target, setTarget] = useState('')
-  const [login, setLogin] = useState('')
+  // Filters + view mode live in the URL (use-prms): ?k=star&t=…&l=…&g
+  const [kind, setKind] = useUrlState('k', stringParam(''))
+  const [target, setTarget] = useUrlState('t', stringParam(''))
+  const [login, setLogin] = useUrlState('l', stringParam(''))
+  const [byRepo, setByRepo] = useUrlState('g', boolParam)
 
   // Over-fetch since the scope filter drops the other variant's events client-side
   const params = new URLSearchParams({ limit: '500' })
@@ -61,6 +63,16 @@ export default function Feed() {
     ...(targets?.follows ?? []).map(t => t.target),
   ].filter(inScope)
 
+  const line = (e: Event, showTarget: boolean) => (
+    <li key={e.id}>
+      <span className="emoji">{KIND_EMOJI[e.kind]}</span>
+      <a href={`https://github.com/${e.login}`} className="login">{e.login}</a>
+      {showTarget && <>{' '}{KIND_VERB[e.kind]}{' '}<a href={targetUrl(e)} className="target">{e.target}</a></>}
+      <span className="ts" title={e.ts}>{time(e.ts)}</span>
+      {e.source === 'git' && <span className="source" title={`backfilled from .watchy@${e.sha}`}>git</span>}
+    </li>
+  )
+
   return (
     <div className="feed">
       <div className="filters">
@@ -76,26 +88,42 @@ export default function Feed() {
           {targetOptions.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
         <input placeholder="login contains…" value={login} onChange={e => setLogin(e.target.value)} />
+        <label className="toggle">
+          <input type="checkbox" checked={byRepo} onChange={e => setByRepo(e.target.checked)} />
+          group by repo
+        </label>
       </div>
       {isLoading && <p className="dim">loading…</p>}
       {error && <p className="error">{String(error)}</p>}
-      {[...byDay.entries()].map(([d, dayEvents]) => (
-        <section key={d}>
-          <h2>{d}</h2>
-          <ul>
-            {dayEvents.map(e => (
-              <li key={e.id}>
-                <span className="emoji">{KIND_EMOJI[e.kind]}</span>
-                <a href={`https://github.com/${e.login}`} className="login">{e.login}</a>
-                {' '}{KIND_VERB[e.kind]}{' '}
-                <a href={targetUrl(e)} className="target">{e.target}</a>
-                <span className="ts" title={e.ts}>{time(e.ts)}</span>
-                {e.source === 'git' && <span className="source" title={`backfilled from .watchy@${e.sha}`}>git</span>}
-              </li>
+      {[...byDay.entries()].map(([d, dayEvents]) => {
+        if (!byRepo) {
+          return (
+            <section key={d}>
+              <h2>{d}</h2>
+              <ul>{dayEvents.map(e => line(e, true))}</ul>
+            </section>
+          )
+        }
+        const byTarget = new Map<string, Event[]>()
+        for (const e of dayEvents) {
+          if (!byTarget.has(e.target)) byTarget.set(e.target, [])
+          byTarget.get(e.target)!.push(e)
+        }
+        return (
+          <section key={d}>
+            <h2>{d}</h2>
+            {[...byTarget.entries()].map(([t, evs]) => (
+              <div className="repo-group" key={t}>
+                <h3>
+                  <a href={`https://github.com/${t}`}>{t}</a>
+                  <span className="dim"> · {evs.length}</span>
+                </h3>
+                <ul>{evs.map(e => line(e, false))}</ul>
+              </div>
             ))}
-          </ul>
-        </section>
-      ))}
+          </section>
+        )
+      })}
       {!isLoading && events.length === 0 && <p className="dim">no events match</p>}
     </div>
   )

@@ -9,5 +9,11 @@ export default defineConfig({
     port: 4199,
     host: true,
     allowedHosts,
+    // Internal-build dev is same-origin ('' API base) — proxy to the prod worker.
+    // /auth/sso has no dev equivalent (it's CF Access at the edge); use a grant
+    // token (?key=) to test authed flows locally.
+    proxy: {
+      '/api': { target: 'https://watchy.ryan-0dc.workers.dev', changeOrigin: true },
+    },
   },
 })

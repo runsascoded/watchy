@@ -1,5 +1,7 @@
 import { collect, type CollectResult, type Env } from './collect'
 import { enrichActors } from './actors'
+import { handleAuth } from './auth'
+import { authenticate, hasScope } from './gate'
 import { buildWeekStats, renderSummary, weeklySummary } from './summary'
 
 const WEEKLY_CRON = '0 14 * * 1' // keep in sync with wrangler.jsonc triggers.crons
@@ -207,10 +209,16 @@ export default {
     const url = new URL(req.url)
     const path = url.pathname
 
+    if (path.startsWith('/api/auth/')) return handleAuth(req, url, env)
+
     if (path === '/api/events') return apiEvents(url, env)
     if (path === '/api/targets') return apiTargets(env)
     if (path === '/api/counts') return apiCounts(url, env)
-    if (path === '/api/actors') return apiActors(url, env)
+    if (path === '/api/actors') {
+      const auth = await authenticate(req, env)
+      if (!auth || !hasScope(auth, 'internal')) return json({ error: 'unauthenticated' }, 401)
+      return apiActors(url, env)
+    }
     if (path === '/api/series') return apiSeries(url, env)
     if (path === '/api/status') return apiStatus(env)
     if (path === '/api/health') return apiHealth(env)

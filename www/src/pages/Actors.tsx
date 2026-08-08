@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { get } from '../api'
+import { useEffect, useMemo, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { ApiError, get } from '../api'
+import { exchangeKeyParam, SignInPanel } from '../auth'
 
 interface Actor {
   login: string
@@ -25,9 +26,22 @@ function liSearch(a: Actor): string {
 
 export default function Actors() {
   const [q, setQ] = useState('')
+  const qc = useQueryClient()
+  // A share link lands here as /actors?key=…: exchange it for a session cookie
+  // (and strip the token from the URL) before the data query settles.
+  const [keyDone, setKeyDone] = useState(() => !new URL(location.href).searchParams.has('key'))
+  useEffect(() => {
+    if (keyDone) return
+    exchangeKeyParam().then(() => {
+      qc.invalidateQueries({ queryKey: ['whoami'] })
+      setKeyDone(true)
+    })
+  }, [keyDone, qc])
   const { data, isLoading, error } = useQuery({
     queryKey: ['actors'],
     queryFn: () => get<{ actors: Actor[] }>('/api/actors'),
+    enabled: keyDone,
+    retry: false,
   })
   const actors = useMemo(() => {
     const all = data?.actors ?? []
@@ -37,7 +51,8 @@ export default function Actors() {
       [a.login, a.name, a.company, a.location, a.bio, a.orgs].some(f => f?.toLowerCase().includes(needle)),
     )
   }, [data, q])
-  if (isLoading) return <p className="dim">loading…</p>
+  if (isLoading || !keyDone) return <p className="dim">loading…</p>
+  if (error instanceof ApiError && error.status === 401) return <SignInPanel next="/actors" />
   if (error || !data) return <p className="error">{String(error)}</p>
 
   return (

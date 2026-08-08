@@ -51,12 +51,18 @@ watchy worker (personal acct, workers.dev) — single auth authority
 
 Worker-side `gate.ts` + the `grants` migration + the two Pages Functions are deliberately app-agnostic (Env deps: `DB`, `SESSION_SECRET`, `ADMIN_EMAILS`; one scope string). Next consumer should lift them as-is; if a third consumer appears, extract to a package/template repo (mortgage-viz's `specs/live-sync.md` already plans the same split — coordinate then). Candidate name: `cf-gate`.
 
-## Status
+## Status — ✅ shipped 2026-08-08
 
 - [x] Research (mortgage-viz / applitrack / marin-gcs-usage / OA guide + Slack thread)
-- [ ] Worker: migration 0007, `gate.ts`, auth routes, gate `/api/actors`
-- [ ] Pages Functions: `auth/sso`, `api/[[path]]` proxy
-- [ ] FE: same-origin API (internal build), Actors sign-in panel, `?key=` exchange, whoami chip, `/access` admin
-- [ ] Secrets: `SESSION_SECRET` (worker + pages project), `ADMIN_EMAILS` var
-- [ ] Deploy + migrate; CIC verify SSO, grant mint/revoke, share link
-- [ ] Narrow Access app to `/auth/sso`; verify public browse + gated AR
+- [x] Worker: migration 0007, `gate.ts`, auth routes, gate `/api/actors`
+- [x] Pages Functions: `auth/sso`, `api/[[path]]` proxy
+- [x] FE: same-origin API (internal build), Actors sign-in panel, `?key=` exchange, whoami chip, `/access` admin
+- [x] Secrets: `SESSION_SECRET` (worker + pages project), `ADMIN_EMAILS` var
+- [x] Deploy + migrate; CIC-verified SSO, grant mint/use (cookie + Bearer + `?key=`), instant revoke
+- [x] Narrow Access app to `watchy.oa.dev/auth/sso`; verified matrix: `/` `/actors` `/health` `/api/events` public · `/api/actors` 401 · `/auth/sso` 302→Access · pages.dev hosts fully gated
+
+Implementation notes (deviations from plan):
+- **`Cf-Access-Authenticated-User-Email` is NOT forwarded** through Pages o2o proxying — only `Cf-Access-Jwt-Assertion` arrives. The sso Function therefore verifies the JWT properly (`gate.ts:verifyAccessJwt`: RS256 vs team `/cdn-cgi/access/certs`, iss+exp+optional aud) — sturdier anyway: identity stays trustworthy even if edge gating is misconfigured.
+- Pages Functions import `../../cfw/src/gate` directly (esbuild bundles across package dirs) — one copy of the crypto, no sync burden.
+- Public watchy-www deploys must run from `www/dist` cwd (`wrangler pages deploy .`) so the internal-only `www/functions/` isn't picked up (wrangler resolves `functions/` from cwd).
+- `/api/actors` also accepts `Authorization: Bearer <token>` for curl/scripts, no cookie jar needed.

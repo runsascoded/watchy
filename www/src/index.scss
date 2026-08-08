@@ -39,7 +39,56 @@ a { color: var(--link); text-decoration: none;
       a { color: var(--fg); }
     }
     nav { display: flex; gap: 1rem; }
+    .whoami { margin-left: auto; font-size: .78rem; display: flex; gap: .5rem; align-items: baseline;
+      .linkish { font: inherit; color: var(--link); background: none; border: none; padding: 0; cursor: pointer;
+        &:hover { text-decoration: underline; }
+      }
+    }
   }
+}
+
+.signin { max-width: 26rem; margin: 3rem auto; text-align: center;
+  .btn { display: inline-block; background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: .5rem 1.2rem; font-weight: 600;
+    &:hover { border-color: var(--dim); text-decoration: none; }
+  }
+}
+
+.access {
+  .mint { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1rem 0;
+    input { font: inherit; color: var(--fg); background: var(--card); border: 1px solid var(--border);
+      border-radius: 6px; padding: .3rem .5rem;
+      &:first-child { width: 20rem; }
+    }
+    button { font: inherit; color: var(--fg); background: var(--card); border: 1px solid var(--border);
+      border-radius: 6px; padding: .3rem .8rem; cursor: pointer;
+      &:disabled { opacity: .5; cursor: default; }
+      &:not(:disabled):hover { border-color: var(--dim); }
+    }
+  }
+  .minted { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: .7rem 1rem; margin: .8rem 0;
+    .token-row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-top: .4rem;
+      code { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: .2rem .4rem;
+        font-size: .78rem; word-break: break-all; }
+      button, .btn { font: inherit; font-size: .8rem; color: var(--fg); background: var(--bg);
+        border: 1px solid var(--border); border-radius: 6px; padding: .2rem .6rem; cursor: pointer;
+        &:hover { border-color: var(--dim); text-decoration: none; }
+      }
+    }
+  }
+  .tbl { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+  table { border-collapse: collapse; font-size: .82rem; width: 100%; }
+  th { background: var(--card); color: var(--dim); font-weight: 600; font-size: .68rem; text-transform: uppercase;
+    letter-spacing: .05em; text-align: left; padding: .45rem .55rem; border-bottom: 1px solid var(--border); }
+  td { padding: .4rem .55rem; border-bottom: 1px solid var(--border);
+    button { font: inherit; font-size: .75rem; color: var(--fg); background: var(--card);
+      border: 1px solid var(--border); border-radius: 5px; padding: .1rem .5rem; cursor: pointer; margin-right: .3rem;
+      &:hover { border-color: var(--dim); }
+      &.danger { border-color: var(--error); color: var(--error); }
+    }
+  }
+  tr:last-child td { border-bottom: none; }
+  tr.dim td { opacity: .55; }
 }
 
 .dim { color: var(--dim); }
@@ -61,6 +110,15 @@ a { color: var(--link); text-decoration: none;
       border-radius: 6px;
       padding: .3rem .5rem;
     }
+    .toggle { display: inline-flex; align-items: center; gap: .35rem; font-size: .85rem; color: var(--dim);
+      cursor: pointer; user-select: none;
+      input { accent-color: var(--link); }
+    }
+  }
+
+  .repo-group { margin: .5rem 0 .7rem .5rem;
+    h3 { margin: 0 0 .1rem; font-size: .88rem; font-weight: 600; }
+    ul { margin-left: .8rem; }
   }
 
   h2 {
