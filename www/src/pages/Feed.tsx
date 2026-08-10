@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { boolParam, stringParam, useUrlState } from 'use-prms'
 import { get, type Event, type TargetCount } from '../api'
 import { inScope } from '../scope'
+import { TargetLink } from '../target'
 
 const KIND_EMOJI: Record<Event['kind'], string> = {
   star: '⭐️',
@@ -14,10 +15,6 @@ const KIND_VERB: Record<Event['kind'], string> = {
   unstar: 'unstarred',
   follow: 'followed',
   unfollow: 'unfollowed',
-}
-
-function targetUrl(e: Event): string {
-  return `https://github.com/${e.target}`
 }
 
 function day(ts: string): string {
@@ -67,7 +64,7 @@ export default function Feed() {
     <li key={e.id}>
       <span className="emoji">{KIND_EMOJI[e.kind]}</span>
       <a href={`https://github.com/${e.login}`} className="login">{e.login}</a>
-      {showTarget && <>{' '}{KIND_VERB[e.kind]}{' '}<a href={targetUrl(e)} className="target">{e.target}</a></>}
+      {showTarget && <>{' '}{KIND_VERB[e.kind]}{' '}<TargetLink target={e.target} /></>}
       <span className="ts" title={e.ts}>{time(e.ts)}</span>
       {e.source === 'git' && <span className="source" title={`backfilled from .watchy@${e.sha}`}>git</span>}
     </li>
@@ -115,7 +112,7 @@ export default function Feed() {
             {[...byTarget.entries()].map(([t, evs]) => (
               <div className="repo-group" key={t}>
                 <h3>
-                  <a href={`https://github.com/${t}`}>{t}</a>
+                  <TargetLink target={t} />
                   <span className="dim"> · {evs.length}</span>
                 </h3>
                 <ul>{evs.map(e => line(e, false))}</ul>

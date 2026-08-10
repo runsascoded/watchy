@@ -29,13 +29,31 @@ def matches(target: str, match: tuple[str, ...]) -> bool:
     return any(target == m or target.startswith(f"{m}/") for m in match)
 
 
-def render_event(e: dict, count: Optional[int] = None, slack_user: Optional[str] = None) -> str:
+def render_event(
+    e: dict,
+    count: Optional[int] = None,
+    slack_user: Optional[str] = None,
+    dashboard_url: Optional[str] = None,
+    org_emoji: Optional[str] = None,
+) -> str:
+    """Mirrors cfw/src/slack.ts renderEvent — keep byte-identical for same inputs."""
+    from urllib.parse import quote
+
     verb, unit = KINDS[e["kind"]]
     login, target, ts = e["login"], e["target"], e["ts"]
     date, hhmm = ts[:10], ts[11:16]
     who = f"<https://github.com/{login}|{login}>" + (f" (<@{slack_user}>)" if slack_user else "")
-    base = f"{who} {verb} <https://github.com/{target}|{target}> · {date} {hhmm}Z"
-    return base if count is None else f"{base} · {count:,} {unit}"
+    # Repo short-name only — the org rides as a workspace-emoji prefix when configured,
+    # and the per-message avatar carries org+kind regardless.
+    short = target.split("/", 1)[1] if "/" in target else target
+    tgt = (f":{org_emoji}: " if org_emoji else "") + f"<https://github.com/{target}|{short}>"
+    base = f"{who} {verb} {tgt} · {date} {hhmm}Z"
+    if count is None:
+        return base
+    total = f"{count:,} {unit}"
+    if dashboard_url:
+        return f"{base} · <{dashboard_url}/?t={quote(target, safe='')}|{total}>"
+    return f"{base} · {total}"
 
 
 @dataclass

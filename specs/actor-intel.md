@@ -1,0 +1,78 @@
+# Actor intel: feed org-icons, actions on /actors, agent digest, threaded Slack replies
+
+RW asks (2026-08-09), in one batch:
+
+1. **Feed grouped headers**: org name is low-info skim-matter — replace with the org's avatar icon; repo short-name is generally unambiguous.
+2. **/actors**: make it clearer *what actions* each notable person took, and *when*. Plus an agent-digestible summary of "recent" (last 6mo / '26 YTD) high-profile actors, for Jeff/Yael's agents to feed into applitrack.
+3. **Weekly summary**: OA members (Alex, Ryan…) aren't notable "new actors" on our own repos — omit them.
+4. **Per-event Slack msgs are low-info**: add threaded replies with interesting actor bits. Optionally invoke Claude to research each actor as actions come in (RW leans per-event over weekly-only) — leverages Slack threading, currently unused.
+5. **Link out to the dashboard more prominently** from event msgs, rather than denorming ever more world-state into each message.
+
+## Design
+
+### 1. Feed org icons (`www/src/target.tsx`)
+
+`TargetLink` renders `https://github.com/<org>.png?size=40` (GitHub redirects to the org/user avatar) + the repo short-name; full `org/repo` in the tooltip. Used in grouped `?g` headers, inline feed lines, and the /actors actions column. Org-only targets (follows) show icon + org name.
+
+### 2. Actions + digest (worker + FE)
+
+- `/api/actors` now attaches `events: [{ts, kind, target}]` per actor (one extra query over the ~3k posted events; grouped in-memory).
+- `/actors` table: "actions" column renders each event as kind-emoji + `TargetLink` + date (capped at 8, "+n more" beyond); replaces the bare "latest" column.
+- **`/api/actors/summary`** (gated `internal`, so agents authenticate with a grant token via `Authorization: Bearer` — mint one at `/access`):
+  - Params: `months` (default 6), `since` (ISO date, overrides months), `min_followers` (default 100), `limit` (default 100), `format=md|json` (default json).
+  - Excludes OA members (org membership or company matching open…athena), i.e. prospects only.
+  - JSON: `{since, min_followers, generated_at, n, actors: [{login, name, company, location, bio, blog, twitter, followers, orgs, events: [...]}]}`.
+  - `format=md`: compact markdown, one section per actor — name/login/followers, company · location, bio, links, event bullets ("starred marin-community/marin · 2026-08-09").
+
+### 3. Weekly summary notables: OA exclusion
+
+`buildWeekStats` notables query adds `orgs NOT LIKE '%"Open-Athena"%'` and `company NOT LIKE '%open%athena%'` (catches `@Open-Athena` and `Open Athena` company strings).
+
+### 4. Threaded actor-bits replies (+ optional Claude research)
+
+- Migration `0008_actor_research.sql`: `slack_posts.reply_ts` (NULL = unprocessed, `''` = processed-no-reply), `actors.research`, `actors.research_at`.
+- `syncActorReplies(env)` (slack.ts), run each tick after `enrichActors`: for posted events whose actor row is enriched, post one threaded reply (`thread_ts` = parent's `slack_posts.ts`) with profile bits: name · company · location · followers/repos/joined · orgs · bio · links (𝕏/blog) · dashboard link. Low-info actors (no name/company/bio and < 50 followers) get the `''` sentinel — no noise reply. Caps + 1s pacing like `syncSlack`.
+- **Claude research** (`researchActor`, actors.ts): when `ANTHROPIC_API_KEY` (worker secret) is set, actors with `followers ≥ RESEARCH_MIN_FOLLOWERS` (var, default 100) get a one-time web-searched 2-3 sentence "who is this + why they might matter to OA" blurb (claude-sonnet-5 + web_search tool), cached in `actors.research` — so an actor starring 5 repos is researched once, not 5×. Replies for research-eligible actors defer until research lands (next tick) when the key is configured; without the key, everything degrades to profile-bits-only.
+
+### 5. Dashboard links
+
+- `DASHBOARD_URL` var (`https://watchy.oa.dev` — Slack audience is OA; the site is public with AR gated, so links work for everyone).
+- Event msgs: running-total suffix (`1,248 :star:`) becomes a link to the dashboard feed filtered to the target (`/?t=<target>`); state stays in the dashboard, msg stays lean.
+- Weekly summary: footer line linking the dashboard + /actors.
+- Threaded replies: trailing link to `/actors`.
+
+## v2 — /actors interest ranking (RW feedback 2026-08-10)
+
+Feedback: table too x-scrolly; JOINED/REPOS ~irrelevant; want following count (weed out follow-spammers), "total stars on their repos", churn-awareness (XiaomingX follow+unfollow ×2 ⇒ uninteresting), and recency weighted so "norvig starred marin ~1mo ago" tops a simple ranking. Wide viewports should get a wider table.
+
+- **Interest score** (FE + digest, same formula): `log10(1+followers) × followers/(followers+following) × √(Σ 2^(−age/hl))` over **still-active** star/follow events. One knob: `?hl=` half-life days (default 60) — the fame-vs-recency dial. √ tempers many-small-events vs one-famous-star; churned events (event's star/follow no longer in current state, per new `active` flag from `postedEventsByLogin`) contribute 0. Result: t11s 3.4, norvig 3.0, Helw150 2.5 top the board.
+- **Insiders hidden by default** on /actors (`?oa` toggle): Open-Athena *or marin-community* org members, or company matching open…athena (marin-community added after Helw150/Will Held — Marin contributor, not in the OA org — topped the prospect list). Same exclusion in the digest and weekly notables.
+- **Columns**: actor (login/name/company·location stacked) · interest · flw/ing · Σ⭐ · actions (churned struck-through) · orgs (≤4 + "+n") · links · bio. JOINED/REPOS dropped.
+- **`star_sum`** (migration 0009): Σ stargazers over owned repos (≤200, GH can't sort repos by stars); enrichment re-sweeps existing actors via `star_sum IS NULL` predicate (~8h at 10/tick). "Repos with ≥write access" isn't publicly computable (collaborator lists need push access) — owned repos is the proxy. Enrichment upsert now preserves `research` columns (was INSERT OR REPLACE).
+- **Digest**: ranks the full eligible set by the same score (60d) before `limit`; entries carry `interest`, `following`, and "(no longer active)" event annotations.
+- **Wide VP**: `.layout:has(.actors) { max-width: 96rem }`.
+
+## v3 — cross-platform reach (RW, 2026-08-10)
+
+- **X follower counts**: browser-visible but not worker-fetchable — the no-JS HTML has no counts (only bio in `og:description`; browsers get them via authed/guest-token GraphQL), syndication endpoint dead. Options if wanted later: paid API (Basic ~$200/mo) or periodic local headless scrape. `actors.x_followers` column exists (migration 0010) so any source can feed it; ranking uses it when present.
+- **Bluesky**: fully open API (`public.api.bsky.app`). `findBsky` (worker + backfill script) matches conservatively: handle guesses `{twitter}.bsky.social` / `{login}.bsky.social`, then `searchActors` requiring an exact display-name match. Stores `bsky_handle` + `bsky_followers`; 🦋 link on /actors (follower count in tooltip), bsky line in digest.
+- **Fame is now log10(1 + GH + bsky + X followers)** (FE + digest); the spam ratio stays GH-only.
+- **`scripts/enrich-backfill.py`**: one-off local backfill (gh CLI + bsky public API → batched D1 UPDATEs) for `following`/`star_sum`/bsky on existing actors — bypasses the worker's 10-actors-per-tick cadence (which exists to bound per-cron-invocation GH subrequests; ~500 actors would otherwise take ~8h).
+
+## v4 — TTs, sort/scoring controls, actor-voiced replies, short OP links (RW, 2026-08-10)
+
+- **/actors**: floating-ui `Tooltip` component (`components/Tooltip.tsx`, shared `.tt` styling) replaces native titles — interest cells get a per-actor breakdown (fame/ratio/recency with numbers), headers, event rows (kind + full ts + churn), orgs "+n", 🦋 (bsky count).
+- **Sort/scoring controls** (all URL-prm'd): `s` = interest | recent-action (exact rev-chron by newest eligible event), `hl` half-life days input, `w` window days (0 = ∞; only actions newer than this count toward score/recent). Rev-chron ≈ the hl→0 limit of the score, but floats underflow there — `sort=recent` is the robust special case.
+- **Thread replies speak as the actor**: `chat.postMessage` `username` = GH name (fallback login) + `icon_url` = their GH avatar; the bold name line dropped from the body (redundant with author).
+- **Event msgs**: target link text is now the repo short-name (org identity rides on the per-message avatar); optional `:org:` workspace-emoji prefix outside the link via `SLACK_ORG_EMOJI` var (empty until emojis are uploaded to the workspace — else Slack shows literal shortcodes). Python mirror (`src/watchy/slack.py render_event`) updated for byte-parity incl. dashboard-link + emoji params.
+
+## Status — ✅ shipped 2026-08-10 (research pending key)
+
+- [x] Feed org icons (grouped headers + inline lines + actions column)
+- [x] `/api/actors` events attach; `/api/actors/summary` JSON + md
+- [x] /actors actions column + digest links
+- [x] Weekly notables OA exclusion
+- [x] Migration 0008; `syncActorReplies` + research plumbing
+- [x] Dashboard links (event suffix, weekly footer, reply footer)
+- [x] Deploy worker + both Pages; verify
+- [ ] `ANTHROPIC_API_KEY` worker secret (user-side; research activates when set)

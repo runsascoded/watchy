@@ -30,9 +30,18 @@
     "FULL_SWEEP_HOUR": "8",
     // SSO emails allowed to CRUD access grants (specs/auth-gate.md); SESSION_SECRET is a secret
     "ADMIN_EMAILS": ["ryan.williams@openathena.ai"],
+    // Linked from Slack event msgs / weekly summaries / thread replies (specs/actor-intel.md)
+    "DASHBOARD_URL": "https://watchy.oa.dev",
+    // Actors at/above this follower count get a one-time Claude research blurb
+    // (requires ANTHROPIC_API_KEY secret; without it, replies are profile-bits-only)
+    "RESEARCH_MIN_FOLLOWERS": "100",
     // Target prefixes whose events get posted to Slack (SLACK_BOT_TOKEN secret + these two must all be set)
     "SLACK_CHANNEL_ID": "C0BKZUV1SKH",
     "SLACK_MATCHES": ["Open-Athena", "marin-community"],
+    // Org → workspace-emoji name, prefixed before repo short-names in event msgs.
+    // Emoji must exist in the workspace first (upload the org avatars, e.g. as
+    // :open-athena: / :marin-community:) or Slack renders the literal shortcode.
+    "SLACK_ORG_EMOJI": {},
     // GH login → OA Slack user id; known actors get an (<@U…>) mention after their GH link.
     // Built by cross-referencing GH org members' profile names against workspace users
     // (email-domain search); unmatched org members: ForOwlMankind, wmoss, LaureZanna, ahmeda14960.

@@ -25,6 +25,12 @@ describe('renderSummary', () => {
     ])
   })
 
+  it('appends a dashboard footer when DASHBOARD_URL is configured', () => {
+    expect(renderSummary(BASE, 'https://watchy.oa.dev').split('\n').slice(-1)).toEqual([
+      ':bar_chart: <https://watchy.oa.dev|dashboard> · <https://watchy.oa.dev/actors|actors>',
+    ])
+  })
+
   it('renders a quiet week', () => {
     expect(renderSummary({ ...BASE, deltas: [], notables: [], nEvents: 0 }).split('\n')).toEqual([
       ':calendar: *Weekly watch summary* · 2026-07-30 → 2026-08-06',

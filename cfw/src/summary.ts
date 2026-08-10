@@ -26,7 +26,7 @@ export interface WeekStats {
 const fmt = (n: number) => n.toLocaleString('en-US')
 
 /** Pure mrkdwn composer — mirrors the channel's shortcode conventions. */
-export function renderSummary(s: WeekStats): string {
+export function renderSummary(s: WeekStats, dashboardUrl?: string): string {
   const lines = [`:calendar: *Weekly watch summary* · ${s.weekStart} → ${s.weekEnd}`]
   if (!s.nEvents) {
     lines.push('_Quiet week — no new activity on watched targets._')
@@ -45,6 +45,9 @@ export function renderSummary(s: WeekStats): string {
     })
     lines.push(`:telescope: Notable new actors: ${who.join('; ')}`)
   }
+  if (dashboardUrl) {
+    lines.push(`:bar_chart: <${dashboardUrl}|dashboard> · <${dashboardUrl}/actors|actors>`)
+  }
   return lines.join('\n')
 }
 
@@ -62,9 +65,14 @@ export async function buildWeekStats(env: Env, now = new Date()): Promise<WeekSt
        WHERE e.ts >= ? AND e.ts < ? AND (${where})
        GROUP BY e.target, e.kind`,
     ).bind(`${start}T00:00:00Z`, `${end}T00:00:00Z`, ...binds),
+    // Insiders (OA / marin-community members) starring our own repos aren't notable —
+    // exclude by org membership and company string ("@Open-Athena" / "Open Athena").
     env.DB.prepare(
       `SELECT a.login, a.name, a.followers, a.company FROM actors a
-       WHERE a.followers >= 100 AND EXISTS (
+       WHERE a.followers >= 100
+       AND (a.orgs IS NULL OR (a.orgs NOT LIKE '%"Open-Athena"%' AND a.orgs NOT LIKE '%"marin-community"%'))
+       AND (a.company IS NULL OR a.company NOT LIKE '%open%athena%')
+       AND EXISTS (
          SELECT 1 FROM events e WHERE e.login = a.login
          AND e.kind IN ('star', 'follow') AND e.ts >= ? AND e.ts < ? AND (${where}))
        ORDER BY a.followers DESC LIMIT 5`,
@@ -96,7 +104,7 @@ export async function weeklySummary(env: Env): Promise<string | null> {
   const stats = await buildWeekStats(env)
   const dup = await env.DB.prepare('SELECT id FROM summaries WHERE week_start = ?').bind(stats.weekStart).first()
   if (dup) return null
-  const text = renderSummary(stats)
+  const text = renderSummary(stats, env.DASHBOARD_URL)
   let slackTs: string | null = null
   if (env.SLACK_BOT_TOKEN && env.SLACK_CHANNEL_ID) {
     const resp = await fetch('https://slack.com/api/chat.postMessage', {

@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createBrowserRouter, Link, Outlet, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, Link, NavLink, Outlet, RouterProvider } from 'react-router-dom'
 import Feed from './pages/Feed'
 import Health from './pages/Health'
 import Icons from './pages/Icons'
@@ -24,11 +24,11 @@ function Layout() {
       <header>
         <h1><Link to="/">👀 watchy</Link>{INTERNAL && <span className="dim"> · OA</span>}</h1>
         <nav>
-          <Link to="/">Feed</Link>
-          <Link to="/health">Health</Link>
-          <Link to="/graphs">Graphs</Link>
-          <Link to="/icons">Icons</Link>
-          {INTERNAL && <Link to="/actors">Actors</Link>}
+          <NavLink to="/" end>Feed</NavLink>
+          <NavLink to="/health">Health</NavLink>
+          <NavLink to="/graphs">Graphs</NavLink>
+          <NavLink to="/icons">Icons</NavLink>
+          {INTERNAL && <NavLink to="/actors">Actors</NavLink>}
           <a href="https://github.com/runsascoded/watchy">GitHub</a>
         </nav>
         {INTERNAL && <WhoamiChip />}

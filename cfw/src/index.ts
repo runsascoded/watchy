@@ -1,5 +1,5 @@
 import { collect, type CollectResult, type Env } from './collect'
-import { enrichActors } from './actors'
+import { enrichActors, researchActors } from './actors'
 import { handleAuth } from './auth'
 import { authenticate, hasScope } from './gate'
 import { buildWeekStats, renderSummary, weeklySummary } from './summary'
@@ -7,7 +7,7 @@ import { buildWeekStats, renderSummary, weeklySummary } from './summary'
 const WEEKLY_CRON = '0 14 * * 1' // keep in sync with wrangler.jsonc triggers.crons
 import { maybeAlert } from './alerts'
 import { sendPushover } from './pushover'
-import { syncSlack } from './slack'
+import { syncActorReplies, syncSlack } from './slack'
 
 async function runCollection(env: Env, fullSweep: boolean): Promise<CollectResult> {
   const startedAt = new Date().toISOString()
@@ -44,6 +44,18 @@ async function runCollection(env: Env, fullSweep: boolean): Promise<CollectResul
     if (enriched) console.log(`actors: enriched ${enriched}`)
   } catch (e) {
     console.error('enrichActors failed:', e)
+  }
+  try {
+    const researched = await researchActors(env)
+    if (researched) console.log(`actors: researched ${researched}`)
+  } catch (e) {
+    console.error('researchActors failed:', e)
+  }
+  try {
+    const replies = await syncActorReplies(env)
+    if (replies) console.log(`slack: replied ${replies}`)
+  } catch (e) {
+    console.error('syncActorReplies failed:', e)
   }
   console.log(JSON.stringify({ runId, ...result }))
   return result
@@ -136,20 +148,170 @@ async function apiSeries(url: URL, env: Env): Promise<Response> {
   return json({ target, series: rows.map(r => ({ ts: r.ts, count: r.cum + offset })) })
 }
 
-/** Enriched actors behind posted events, follower-sorted, with posted-activity rollups. */
-async function apiActors(url: URL, env: Env): Promise<Response> {
-  const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '500', 10), 2000)
+interface ActorEvent {
+  login: string
+  ts: string
+  kind: string
+  target: string
+  active: number // star/follow still present in current state (0 for churned or un- events)
+}
+
+/** All posted events, newest first, grouped by login (small: one row per Slack-posted event). */
+async function postedEventsByLogin(env: Env, sinceTs?: string): Promise<Map<string, ActorEvent[]>> {
   const { results } = await env.DB
     .prepare(
-      `SELECT a.*, x.n_events, x.first_ts, x.last_ts FROM actors a
-       JOIN (SELECT e.login, COUNT(*) n_events, MIN(e.ts) first_ts, MAX(e.ts) last_ts
-             FROM events e JOIN slack_posts sp ON sp.event_id = e.id GROUP BY e.login) x
-         ON x.login = a.login
-       ORDER BY a.followers DESC LIMIT ?`,
+      `SELECT e.login, e.ts, e.kind, e.target,
+         CASE
+           WHEN e.kind = 'star' THEN EXISTS (SELECT 1 FROM stars s WHERE s.repo = e.target AND s.login = e.login)
+           WHEN e.kind = 'follow' THEN EXISTS (SELECT 1 FROM follows f WHERE f.target = e.target AND f.login = e.login)
+           ELSE 0
+         END AS active
+       FROM events e
+       JOIN slack_posts sp ON sp.event_id = e.id
+       ${sinceTs ? 'WHERE e.ts >= ?' : ''} ORDER BY e.ts DESC`,
     )
-    .bind(limit)
-    .all()
-  return json({ actors: results })
+    .bind(...(sinceTs ? [sinceTs] : []))
+    .all<ActorEvent>()
+  const byLogin = new Map<string, ActorEvent[]>()
+  for (const e of results) {
+    if (!byLogin.has(e.login)) byLogin.set(e.login, [])
+    byLogin.get(e.login)!.push(e)
+  }
+  return byLogin
+}
+
+/** Enriched actors behind posted events, follower-sorted, with posted-activity rollups + per-actor events. */
+async function apiActors(url: URL, env: Env): Promise<Response> {
+  const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '500', 10), 2000)
+  const [{ results }, evByLogin] = await Promise.all([
+    env.DB
+      .prepare(
+        `SELECT a.*, x.n_events, x.first_ts, x.last_ts FROM actors a
+         JOIN (SELECT e.login, COUNT(*) n_events, MIN(e.ts) first_ts, MAX(e.ts) last_ts
+               FROM events e JOIN slack_posts sp ON sp.event_id = e.id GROUP BY e.login) x
+           ON x.login = a.login
+         ORDER BY a.followers DESC LIMIT ?`,
+      )
+      .bind(limit)
+      .all<{ login: string }>(),
+    postedEventsByLogin(env),
+  ])
+  return json({ actors: results.map(a => ({ ...a, events: (evByLogin.get(a.login) ?? []).map(({ login: _, ...e }) => e) })) })
+}
+
+// Excludes insiders (prospects only): OA or marin-community org membership, or company
+// matching open…athena ("@Open-Athena", "Open Athena"). Kept in sync with buildWeekStats
+// notables and the FE isInsider (www/src/pages/Actors.tsx).
+const NOT_OA = `(a.orgs IS NULL OR (a.orgs NOT LIKE '%"Open-Athena"%' AND a.orgs NOT LIKE '%"marin-community"%'))
+       AND (a.company IS NULL OR a.company NOT LIKE '%open%athena%')`
+
+interface SummaryActor {
+  login: string
+  name: string | null
+  company: string | null
+  location: string | null
+  bio: string | null
+  blog: string | null
+  twitter: string | null
+  followers: number
+  following: number | null
+  star_sum: number | null
+  bsky_handle: string | null
+  bsky_followers: number | null
+  x_followers: number | null
+  orgs: string | null
+}
+
+/** Mirrors the FE interest score (www/src/pages/Actors.tsx) at the default 60d half-life. */
+function interestScore(
+  a: { followers: number | null; following: number | null; bsky_followers?: number | null; x_followers?: number | null },
+  events: ActorEvent[],
+  nowMs: number,
+): number {
+  const flw = a.followers ?? 0
+  // Fame counts cross-platform reach; the spam ratio stays GH-only (following counts are GH's)
+  const reach = flw + (a.bsky_followers ?? 0) + (a.x_followers ?? 0)
+  const fame = Math.log10(1 + reach)
+  const ratio = (flw + 1) / (flw + (a.following ?? 0) + 2)
+  let recency = 0
+  for (const e of events) {
+    if (!e.active) continue
+    recency += 2 ** (-Math.max(0, nowMs - Date.parse(e.ts)) / (60 * 86_400_000))
+  }
+  return fame * ratio * Math.sqrt(recency)
+}
+
+/** Agent-digestible roll-up of recent high-profile (non-OA) actors — for feeding applitrack etc. */
+async function apiActorsSummary(url: URL, env: Env): Promise<Response> {
+  const months = Math.max(1, parseInt(url.searchParams.get('months') ?? '6', 10))
+  const since = url.searchParams.get('since') ?? new Date(Date.now() - months * 30 * 86_400_000).toISOString().slice(0, 10)
+  const minFollowers = Math.max(0, parseInt(url.searchParams.get('min_followers') ?? '100', 10))
+  const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '100', 10), 500)
+  const sinceTs = `${since}T00:00:00Z`
+  const [{ results: actors }, evByLogin] = await Promise.all([
+    env.DB
+      .prepare(
+        `SELECT a.login, a.name, a.company, a.location, a.bio, a.blog, a.twitter, a.followers, a.following,
+                a.star_sum, a.bsky_handle, a.bsky_followers, a.x_followers, a.orgs
+         FROM actors a
+         WHERE a.followers >= ? AND ${NOT_OA}
+         AND EXISTS (SELECT 1 FROM events e JOIN slack_posts sp ON sp.event_id = e.id
+                     WHERE e.login = a.login AND e.kind IN ('star', 'follow') AND e.ts >= ?)
+         ORDER BY a.followers DESC LIMIT 1000`,
+      )
+      .bind(minFollowers, sinceTs)
+      .all<SummaryActor>(),
+    postedEventsByLogin(env, sinceTs),
+  ])
+  const nowMs = Date.now()
+  // Rank the full eligible set before applying `limit` — interest order ≠ follower order
+  const out = actors
+    .map(a => ({
+      ...a,
+      orgs: a.orgs ? (JSON.parse(a.orgs) as string[]) : [],
+      interest: Math.round(interestScore(a, evByLogin.get(a.login) ?? [], nowMs) * 10) / 10,
+      events: (evByLogin.get(a.login) ?? []).map(({ login: _, ...e }) => e),
+    }))
+    .sort((x, y) => y.interest - x.interest || y.followers - x.followers)
+    .slice(0, limit)
+  const meta = { since, min_followers: minFollowers, generated_at: new Date().toISOString(), n: out.length }
+  if (url.searchParams.get('format') === 'md') {
+    const fmtN = (n: number) => n.toLocaleString('en-US')
+    const lines = [
+      `# High-profile GitHub actors on watched OA/marin repos · since ${since}`,
+      '',
+      `Criteria: ≥${minFollowers} followers, ≥1 star/follow on a watched target; Open Athena / marin-community members excluded. ${out.length} actors, ranked by interest (log-followers × follower-ratio × recency-decayed still-active actions, 60d half-life). Generated ${meta.generated_at}.`,
+      '',
+    ]
+    for (const a of out) {
+      const title = a.name ? `${a.name} ([${a.login}](https://github.com/${a.login}))` : `[${a.login}](https://github.com/${a.login})`
+      const reach = [
+        `${fmtN(a.followers)} GH followers${a.following != null ? ` / ${fmtN(a.following)} following` : ''}`,
+        a.bsky_followers != null && `${fmtN(a.bsky_followers)} bsky`,
+        a.x_followers != null && `${fmtN(a.x_followers)} X`,
+      ].filter(Boolean).join(', ')
+      lines.push(`## ${title} · interest ${a.interest} · ${reach}`)
+      const where = [a.company, a.location].filter(Boolean).join(' · ')
+      if (where) lines.push(`- ${where}`)
+      if (a.bio) lines.push(`- ${a.bio}`)
+      if (a.orgs.length) lines.push(`- orgs: ${a.orgs.join(', ')}`)
+      const links = [
+        a.twitter && `[x.com/${a.twitter}](https://x.com/${a.twitter})`,
+        a.bsky_handle && `[bsky.app/profile/${a.bsky_handle}](https://bsky.app/profile/${a.bsky_handle})`,
+        a.blog && (a.blog.startsWith('http') ? a.blog : `https://${a.blog}`),
+      ].filter(Boolean)
+      if (links.length) lines.push(`- links: ${links.join(' · ')}`)
+      for (const e of a.events) {
+        const verb = e.kind === 'star' || e.kind === 'unstar' ? `${e.kind}red` : `${e.kind}ed`
+        lines.push(`- ${verb} ${e.target} · ${e.ts.slice(0, 10)}${e.active ? '' : ' (no longer active)'}`)
+      }
+      lines.push('')
+    }
+    return new Response(lines.join('\n'), {
+      headers: { 'content-type': 'text/markdown; charset=utf-8', 'access-control-allow-origin': '*' },
+    })
+  }
+  return json({ ...meta, actors: out })
 }
 
 /** One-round-trip pipeline snapshot for the FE /health page (ctbk pattern). */
@@ -214,10 +376,10 @@ export default {
     if (path === '/api/events') return apiEvents(url, env)
     if (path === '/api/targets') return apiTargets(env)
     if (path === '/api/counts') return apiCounts(url, env)
-    if (path === '/api/actors') {
+    if (path === '/api/actors' || path === '/api/actors/summary') {
       const auth = await authenticate(req, env)
       if (!auth || !hasScope(auth, 'internal')) return json({ error: 'unauthenticated' }, 401)
-      return apiActors(url, env)
+      return path === '/api/actors' ? apiActors(url, env) : apiActorsSummary(url, env)
     }
     if (path === '/api/series') return apiSeries(url, env)
     if (path === '/api/status') return apiStatus(env)
@@ -253,7 +415,7 @@ export default {
       const denied = keyGate(req, env)
       if (denied) return denied
       const stats = await buildWeekStats(env)
-      return json({ text: renderSummary(stats), stats })
+      return json({ text: renderSummary(stats, env.DASHBOARD_URL), stats })
     }
 
     if (path === '/check') {

@@ -12,8 +12,12 @@ export interface Env {
   SLACK_CHANNEL_ID?: string
   SLACK_MATCHES?: string[]
   SLACK_USER_MAP?: Record<string, string>
+  SLACK_ORG_EMOJI?: Record<string, string>
   SESSION_SECRET?: string
   ADMIN_EMAILS?: string[]
+  DASHBOARD_URL?: string
+  ANTHROPIC_API_KEY?: string
+  RESEARCH_MIN_FOLLOWERS?: string
 }
 
 interface Targets {

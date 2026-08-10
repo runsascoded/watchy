@@ -28,6 +28,9 @@ a { color: var(--link); text-decoration: none;
   margin: 0 auto;
   padding: 0 1rem 3rem;
 
+  // The actors table is dense — let it use the viewport
+  &:has(.actors) { max-width: 96rem; }
+
   header {
     display: flex;
     align-items: baseline;
@@ -38,7 +41,16 @@ a { color: var(--link); text-decoration: none;
     h1 { margin: 0; font-size: 1.3rem;
       a { color: var(--fg); }
     }
-    nav { display: flex; gap: 1rem; }
+    nav { display: flex; gap: 1rem;
+      // Active-route "tab": fg-colored + underline (no bolding, so widths don't shift)
+      a.active {
+        color: var(--fg);
+        text-decoration: underline;
+        text-decoration-thickness: 2px;
+        text-underline-offset: .45em;
+        &:hover { text-decoration: underline; }
+      }
+    }
     .whoami { margin-left: auto; font-size: .78rem; display: flex; gap: .5rem; align-items: baseline;
       .linkish { font: inherit; color: var(--link); background: none; border: none; padding: 0; cursor: pointer;
         &:hover { text-decoration: underline; }
@@ -95,6 +107,20 @@ a { color: var(--link); text-decoration: none;
 .error { color: var(--error); }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 
+.toggle { display: inline-flex; align-items: center; gap: .35rem; font-size: .85rem; color: var(--dim);
+  cursor: pointer; user-select: none;
+  input { accent-color: var(--link); }
+}
+
+// TargetLink: org avatar standing in for the `org/` prefix
+.org-icon {
+  width: 1.05em;
+  height: 1.05em;
+  border-radius: 3px;
+  vertical-align: -.15em;
+  margin-right: .35em;
+}
+
 .feed {
   .filters {
     display: flex;
@@ -109,10 +135,6 @@ a { color: var(--link); text-decoration: none;
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: .3rem .5rem;
-    }
-    .toggle { display: inline-flex; align-items: center; gap: .35rem; font-size: .85rem; color: var(--dim);
-      cursor: pointer; user-select: none;
-      input { accent-color: var(--link); }
     }
   }
 
@@ -214,7 +236,9 @@ a { color: var(--link); text-decoration: none;
 }
 
 .tt { z-index: 20; background: var(--card); border: 1px solid var(--border); border-radius: 6px;
-  padding: .3rem .55rem; font-size: .78rem; box-shadow: 0 2px 8px rgb(0 0 0 / .25); max-width: 26rem; }
+  padding: .3rem .55rem; font-size: .78rem; box-shadow: 0 2px 8px rgb(0 0 0 / .25); max-width: 26rem;
+  .bd { display: grid; gap: .15rem; }
+}
 
 .runs-grid { display: flex; flex-wrap: wrap; gap: 3px; margin: .6rem 0; align-items: center;
   --ok-cell: light-dark(#9ece9a, #2ea04366);
@@ -261,8 +285,8 @@ a { color: var(--link); text-decoration: none;
 }
 
 .actors {
-  .filters { margin: .8rem 0;
-    input {
+  .filters { margin: .8rem 0; display: flex; gap: .9rem; align-items: center; flex-wrap: wrap;
+    > input {
       font: inherit; color: var(--fg); background: var(--card);
       border: 1px solid var(--border); border-radius: 6px; padding: .3rem .5rem; width: 22rem; max-width: 100%;
     }
@@ -274,7 +298,25 @@ a { color: var(--link); text-decoration: none;
     padding: .45rem .55rem; border-bottom: 1px solid var(--border); }
   td { padding: .4rem .55rem; border-bottom: 1px solid var(--border); vertical-align: top; }
   tr:last-child td { border-bottom: none; }
-  .who { white-space: nowrap; }
+  .who { white-space: nowrap;
+    .where { font-size: .74rem; max-width: 13rem; white-space: normal; }
+  }
+  .prm { display: inline-flex; align-items: center; gap: .3rem; font-size: .85rem; color: var(--dim);
+    input, select {
+      font: inherit; color: var(--fg); background: var(--card);
+      border: 1px solid var(--border); border-radius: 4px; padding: .15rem .3rem;
+    }
+    input[type=number] { width: 3.4rem; }
+  }
+  .hint { cursor: help; border-bottom: 1px dotted var(--dim); }
+  .score { font-weight: 600; }
+  .acts { white-space: nowrap;
+    .ts { margin-left: .45em; font-size: .74rem; }
+    .act.gone { opacity: .5;
+      a, > span:first-child { text-decoration: line-through; }
+    }
+  }
+  .digest code { font-size: .82em; }
   .orgs { max-width: 11rem; }
   .bio { min-width: 16rem; color: var(--dim); }
   .links a { margin-right: .45rem; }
