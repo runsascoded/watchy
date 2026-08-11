@@ -229,12 +229,16 @@ function interestScore(
   const reach = flw + (a.bsky_followers ?? 0) + (a.x_followers ?? 0)
   const fame = Math.log10(1 + reach)
   const ratio = (flw + 1) / (flw + (a.following ?? 0) + 2)
-  let recency = 0
+  // Recency = decay of the newest still-active action, +15% per extra action —
+  // max (not Σ) so event count can't outweigh fame (see www scoreActor)
+  let recMax = 0
+  let n = 0
   for (const e of events) {
     if (!e.active) continue
-    recency += 2 ** (-Math.max(0, nowMs - Date.parse(e.ts)) / (60 * 86_400_000))
+    recMax = Math.max(recMax, 2 ** (-Math.max(0, nowMs - Date.parse(e.ts)) / (60 * 86_400_000)))
+    n++
   }
-  return fame * ratio * Math.sqrt(recency)
+  return fame * ratio * recMax * (1 + 0.15 * Math.max(0, n - 1))
 }
 
 /** Agent-digestible roll-up of recent high-profile (non-OA) actors — for feeding applitrack etc. */

@@ -36,6 +36,8 @@ interface Actor {
   bsky_handle: string | null
   bsky_followers: number | null
   x_followers: number | null
+  li_url: string | null // curated LI profile (else we fall back to a name search)
+  li_company_url: string | null
   n_events: number
   first_ts: string
   last_ts: string
@@ -46,19 +48,25 @@ interface Score {
   reach: number
   fame: number
   ratio: number
-  recSum: number
+  recMax: number
   n: number
   latest: number // ms epoch of newest eligible event (0 if none)
   score: number
 }
 
+// Extra still-active events multiply recency by 1 + MULTI_EVENT_BONUS each —
+// engagement depth counts, but can't outweigh a much more famous actor's single star
+// (√Σ-decay did exactly that: two 72d-old stars beat one 51d-old star from an
+// actor with 2.5× the followers, since log10 compresses fame gaps).
+const MULTI_EVENT_BONUS = 0.15
+
 /**
  * "Interest" = fame × follower-ratio × recency:
  * - fame: log10(1 + cross-platform reach: GH + bsky + X followers)
  * - ratio: GH followers/(followers+following) — discounts follow-for-follow accounts
- * - recency: √Σ 2^(−age/hl) over still-active star/follow events within the window —
- *   churned (starred-then-unstarred) actions contribute nothing; √ tempers
- *   many-small-events so they don't drown one famous actor's single star.
+ * - recency: max 2^(−age/hl) over still-active star/follow events within the window,
+ *   × (1 + 0.15·(n−1)) for extra events — churned (starred-then-unstarred) actions
+ *   contribute nothing; the max (vs a sum) keeps "newest action" the dominant axis.
  * hl → 0 makes the newest action dominate (≈ rev-chron); `sort=recent` is the exact version.
  */
 function scoreActor(a: Actor, hlDays: number, winDays: number, now: number): Score {
@@ -66,7 +74,7 @@ function scoreActor(a: Actor, hlDays: number, winDays: number, now: number): Sco
   const reach = flw + (a.bsky_followers ?? 0) + (a.x_followers ?? 0)
   const fame = Math.log10(1 + reach)
   const ratio = (flw + 1) / (flw + (a.following ?? 0) + 2)
-  let recSum = 0
+  let recMax = 0
   let n = 0
   let latest = 0
   for (const e of a.events) {
@@ -74,11 +82,12 @@ function scoreActor(a: Actor, hlDays: number, winDays: number, now: number): Sco
     const t = Date.parse(e.ts)
     const age = Math.max(0, now - t)
     if (winDays > 0 && age > winDays * DAY_MS) continue
-    recSum += 2 ** (-age / (hlDays * DAY_MS))
+    recMax = Math.max(recMax, 2 ** (-age / (hlDays * DAY_MS)))
     n++
     if (t > latest) latest = t
   }
-  return { reach, fame, ratio, recSum, n, latest, score: fame * ratio * Math.sqrt(recSum) }
+  const rec = recMax * (1 + MULTI_EVENT_BONUS * Math.max(0, n - 1))
+  return { reach, fame, ratio, recMax, n, latest, score: fame * ratio * rec }
 }
 
 // Insiders: OA or marin-community org members, or company says Open Athena —
@@ -91,7 +100,7 @@ function isInsider(a: Actor): boolean {
 }
 
 function liSearch(a: Actor): string {
-  return `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(a.name ?? a.login)}`
+  return a.li_url ?? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(a.name ?? a.login)}`
 }
 
 const fmt = (n: number | null) => n?.toLocaleString() ?? ''
@@ -126,7 +135,7 @@ function Breakdown({ a, s, hl }: { a: Actor; s: Score; hl: number }) {
     <div className="bd">
       <div>fame <b>{s.fame.toFixed(2)}</b> = log₁₀(1 + {fmt(s.reach)} reach: {reachParts})</div>
       <div>ratio <b>{s.ratio.toFixed(2)}</b> = GH followers / (followers + following)</div>
-      <div>recency <b>{Math.sqrt(s.recSum).toFixed(2)}</b> = √Σ 2^(−age/{hl}d) over {s.n} active event{s.n === 1 ? '' : 's'}</div>
+      <div>recency <b>{(s.recMax * (1 + 0.15 * Math.max(0, s.n - 1))).toFixed(2)}</b> = max 2^(−age/{hl}d){s.n > 1 && ` × ${(1 + 0.15 * (s.n - 1)).toFixed(2)} multi-event bonus`} over {s.n} active event{s.n === 1 ? '' : 's'}</div>
       <div>interest = <b>{s.score.toFixed(2)}</b></div>
     </div>
   )
@@ -182,7 +191,7 @@ export default function Actors() {
     <div className="actors">
       <p>
         {data.actors.length} enriched actors behind posted events, ranked by{' '}
-        <Tooltip tip="log₁₀(1 + GH + bsky + X followers) × GH follower-ratio (discounts follow-spam) × √(recency-decayed still-active actions). Hover any interest value for that actor's breakdown."><b className="hint">interest</b></Tooltip>{' '}
+        <Tooltip tip="log₁₀(1 + GH + bsky + X followers) × GH follower-ratio (discounts follow-spam) × recency (decay of the newest still-active action, +15% per extra action). Hover any interest value for that actor's breakdown."><b className="hint">interest</b></Tooltip>{' '}
         (or newest action — see sort). LinkedIn links are prefilled people-searches — open logged-in to see
         mutual connections.
       </p>

@@ -114,14 +114,17 @@ export function renderActorOp(events: EventRow[], a: ActorBits | null, opts: Act
     // and drop both the blind people-search and the redundant blog entry.
     const blogUrl = a.blog ? (a.blog.startsWith('http') ? a.blog : `https://${a.blog}`) : null
     const liProfile = blogUrl?.match(/linkedin\.com\/in\/([^/?#]+)/)
-    // LI people-search is only worth linking when we have a real full name to key on —
-    // single-token or handle-like names return junk results (worse than no link)
+    // Curated li_url > linkedin.com/in/… blog > people-search — the search is only
+    // worth linking when we have a real full name to key on; single-token or
+    // handle-like names return junk results (worse than no link)
     const liName = a.name?.trim()
-    const li = liProfile
-      ? `:linkedin: <${blogUrl}|${liProfile[1]}>`
-      : liName?.includes(' ')
-        ? `:linkedin: <https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(liName)}|search>`
-        : null
+    const li = a.li_url
+      ? `:linkedin: <${a.li_url}|${a.li_url.match(/linkedin\.com\/in\/([^/?#]+)/)?.[1] ?? 'profile'}>`
+      : liProfile
+        ? `:linkedin: <${blogUrl}|${liProfile[1]}>`
+        : liName?.includes(' ')
+          ? `:linkedin: <https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(liName)}|search>`
+          : null
     // Tease high-star repos alongside the star sum ("mostly VMamba 2,300")
     const tops: Array<{ n: string; s: number }> = a.top_repos ? JSON.parse(a.top_repos) : []
     const topStr = tops.filter(t => t.s >= 200).slice(0, 2)
@@ -141,7 +144,7 @@ export function renderActorOp(events: EventRow[], a: ActorBits | null, opts: Act
     const coPart = co
       ? co.startsWith('@')
         ? `<https://github.com/${co.slice(1)}|${co}>`
-        : `<https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(companyKeywords(co))}|${co}>`
+        : `<${a.li_company_url ?? `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(companyKeywords(co))}`}|${co}>`
       : null
     const bio = a.bio?.replace(/\s+/g, ' ').trim()
     const blogPart = blogUrl && !liProfile
@@ -316,5 +319,7 @@ export interface ActorBits {
   bsky_followers: number | null
   top_repos: string | null
   research: string | null
+  li_url?: string | null
+  li_company_url?: string | null
 }
 

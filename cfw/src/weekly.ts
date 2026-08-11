@@ -35,6 +35,7 @@ interface WeekActor {
   top_repos: string | null
   company: string | null
   location: string | null
+  li_company_url?: string | null
 }
 
 export interface WeeklyData {
@@ -65,7 +66,7 @@ function affil(a: WeekActor): { text: string; url: string | null } | null {
   else if (co) co = companyKeywords(co) || null
   const city = a.location?.split(',')[0].trim() || null
   if (co) {
-    const url = `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(co)}`
+    const url = a.li_company_url ?? `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(co)}`
     const text = city && !SELF_LOCATING.test(co) && !co.toLowerCase().includes(city.toLowerCase()) ? `${co} (${city})` : co
     return { text, url }
   }
@@ -205,7 +206,7 @@ export async function updateWeeklyOp(env: Env, weekStart: string, opTs: string):
     .bind(...targets)
     .all<{ target: string; ts: string; count: number }>()
   const { results: actors } = await env.DB
-    .prepare(`SELECT login, followers, star_sum, top_repos, company, location FROM actors WHERE login IN (${logins.map(() => '?').join(',')})`)
+    .prepare(`SELECT login, followers, star_sum, top_repos, company, location, li_company_url FROM actors WHERE login IN (${logins.map(() => '?').join(',')})`)
     .bind(...logins)
     .all<WeekActor>()
   const { results: replyRows } = await env.DB

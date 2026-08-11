@@ -151,6 +151,22 @@ describe('renderActorOp', () => {
     ])
   })
 
+  it('prefers curated li_url + li_company_url over blog-derived / search links', () => {
+    const jerome = bits({
+      login: 'jeromekelleher', name: 'Jerome Kelleher', company: 'Big Data Institute', followers: 206,
+      public_repos: 112, star_sum: 63, gh_created_at: '2012-01-01T00:00:00Z',
+      li_url: 'https://www.linkedin.com/in/jeromekelleher/',
+      li_company_url: 'https://www.linkedin.com/company/bigdatainstitute/',
+    })
+    const msg = renderActorOp([ev(6, '2026-06-29T12:00:00Z', 'follow', 'Open-Athena', 'jeromekelleher')], jerome, { counts: [26] })
+    expect(msg.text.split('\n')).toEqual([
+      '<https://github.com/jeromekelleher|jeromekelleher> · *206 followers* · 112 repos (63 :star:) · joined 2012'
+        + ' · :linkedin: <https://www.linkedin.com/in/jeromekelleher/|jeromekelleher>',
+      '<https://www.linkedin.com/company/bigdatainstitute/|Big Data Institute>',
+      '<https://github.com/Open-Athena|Open-Athena> · 26 :bell:',
+    ])
+  })
+
   it('bolds notable counts and teases high-star repos', () => {
     const mz = bits({
       login: 'MzeroMiko', name: 'Liu Yue', followers: 173, public_repos: 25, star_sum: 3663,
