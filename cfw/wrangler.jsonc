@@ -40,9 +40,12 @@
     "SLACK_CHANNEL_ID": "C0BKZUV1SKH",
     "SLACK_MATCHES": ["Open-Athena", "marin-community"],
     // Org → workspace-emoji name, prefixed before repo short-names in event msgs.
-    // Emoji must exist in the workspace first (upload the org avatars, e.g. as
-    // :open-athena: / :marin-community:) or Slack renders the literal shortcode.
-    "SLACK_ORG_EMOJI": {},
+    // Emoji must exist in the workspace or Slack renders the literal shortcode
+    // (both of these do, plus :marin: / :oa: aliases).
+    "SLACK_ORG_EMOJI": {
+      "Open-Athena": "open-athena",
+      "marin-community": "marin-community"
+    },
     // GH login → OA Slack user id; known actors get an (<@U…>) mention after their GH link.
     // Built by cross-referencing GH org members' profile names against workspace users
     // (email-domain search); unmatched org members: ForOwlMankind, wmoss, LaureZanna, ahmeda14960.

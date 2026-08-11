@@ -97,6 +97,21 @@ Staging: private `#watchy-staging` (`C0BPFJS550A`, created via Slack MCP — bot
 
 Demo v2 (2026-08-11, after RW feedback on v1's mixed-format replay): OP = repo-grouped WTD scoreboard, sender "📅 Week of 8/10" + `:date:` icon (no watchy branding), lines `:org: <repo> · base → <dash|current :unit:>`; replies = per-action verbose append-log, all 16 events re-rendered via production `renderActorOp` (`tmp/render-week.mts` → `tmp/weekly-demo-v2.py`). In prod the OP would be `chat.update`'d on each action (edits don't notify — replies notify thread followers only). Workspace already has `:marin:`/`:marin-community:`/`:open-athena:`/`:oa:` emojis, so `SLACK_ORG_EMOJI` can be populated now.
 
+## v8 — msg refinements from staging demo v2 (RW, 2026-08-11)
+
+All in production `renderActorOp`/`syncSlack` (deployed; staging demo v3 shows them on this week's events):
+
+- **Sender verbs tenseless, emoji-only**: `star ⭐ / unstar 💔 / follow 🔔 / unfollow 🔕` ("user ⭐ repo"); 🔔/🔕 = subscribe/mute (replacing 📣/🔇 — alternates considered: ➕/➖, 👀).
+- **B2b combining**: consecutive same-actor events in a batch merge into one message — sender `mearcstapa-gqz ⭐ marin, 🔔 marin-community`, one event-ref line each; ledger rows share the post ts. `renderActorOp` now takes `(events[], actor, opts)` (opts: counts[], slackUser, dashboardUrl, orgEmoji map).
+- **LI profile detection**: a `linkedin.com/in/…` blog renders as `:linkedin: <url|slug>` in the socials slot, suppressing both the blind people-search and the redundant blog entry.
+- **Employer links**: company → LI *company* search; `@Org`-style companies → GH org page.
+- **Bold notables**: followers ≥ 100 and star_sum ≥ 1000 render bold.
+- **Top-repo teases** (migration 0011 `actors.top_repos`, JSON top-3 by stars): repos ≥ 200⭐ (max 2) inline in the star_sum parens — "25 repos (*3,663 ⭐* · VMamba 3,217)". Enrichment captures them (`fetchRepoStats`); re-sweep predicate `star_sum > 0 AND top_repos IS NULL` backfills existing actors at 10/tick (~1 day at */5).
+- **Compact body**: company · location · _bio_ (whitespace-collapsed) · 🌐 blog fold into one line; blog anchors strip protocol + trailing slash.
+- **`SLACK_ORG_EMOJI` enabled**: workspace already has `:marin:`/`:marin-community:`/`:open-athena:`/`:oa:`.
+- **Weekly-OP demo v3** (`tmp/weekly-demo-v3.py`): sender "Week of 8/10" (📅 dropped — redundant with the `:date:` AVI); body org-grouped — org line (follows delta) with its repos as indented bullets, `:open-athena: marin-dna` flat (no OA-org activity); `notable:` line (followers ≥ 50 or star_sum ≥ 500 this week).
+- **thrds**: not usable for posting pre-rendered mrkdwn (`to_slack()` md conversion mangles it — `*bold*` → `_…_`); spec'd `raw=True` passthrough in `~/c/thrds/specs/raw-mrkdwn-passthrough.md`.
+
 ## Status — ✅ shipped 2026-08-10 (research pending key)
 
 - [x] Feed org icons (grouped headers + inline lines + actions column)

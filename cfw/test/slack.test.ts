@@ -53,7 +53,7 @@ describe('renderActorOp', () => {
   const bits = (over: Partial<ActorBits>): ActorBits => ({
     login: 'x', name: null, company: null, location: null, bio: null, blog: null, twitter: null,
     followers: null, public_repos: null, star_sum: null, gh_created_at: null, orgs: null,
-    bsky_handle: null, bsky_followers: null, research: null, ...over,
+    bsky_handle: null, bsky_followers: null, top_repos: null, research: null, ...over,
   })
   const nn = bits({
     login: 'nnagarajan', name: 'Naveen Nagarajan', followers: 6, public_repos: 79, star_sum: 3,
@@ -62,8 +62,8 @@ describe('renderActorOp', () => {
   const e = ev(3095, '2026-08-10T22:46:20Z', 'star', 'marin-community/marin', 'nnagarajan')
 
   it('rides the event on the sender line and stacks the actor bits in the body', () => {
-    const msg = renderActorOp(e, nn, 1253, undefined, 'https://watchy.oa.dev')
-    expect(msg.username).toBe("Naveen Nagarajan ⭐'d marin")
+    const msg = renderActorOp([e], nn, { counts: [1253], dashboardUrl: 'https://watchy.oa.dev' })
+    expect(msg.username).toBe('Naveen Nagarajan ⭐ marin')
     expect(msg.icon_url).toBe('https://github.com/nnagarajan.png?size=96')
     expect(msg.text.split('\n')).toEqual([
       '<https://github.com/nnagarajan|nnagarajan> · 6 followers · 79 repos (3 :star:) · joined 2014'
@@ -73,44 +73,92 @@ describe('renderActorOp', () => {
     ])
   })
 
+  it('combines back-to-back events by the same actor into one comma-delimited sender', () => {
+    const anon = bits({ login: 'mearcstapa-gqz', followers: 1 })
+    const msg = renderActorOp([
+      ev(8, '2026-08-10T16:15:00Z', 'star', 'marin-community/marin', 'mearcstapa-gqz'),
+      ev(9, '2026-08-10T16:20:00Z', 'follow', 'marin-community', 'mearcstapa-gqz'),
+    ], anon, { counts: [1252, 130], orgEmoji: { 'marin-community': 'marin-community' } })
+    expect(msg.username).toBe('mearcstapa-gqz ⭐ marin, 🔔 marin-community')
+    expect(msg.text.split('\n')).toEqual([
+      ':marin-community: <https://github.com/marin-community/marin|marin> · 1,252 :star:',
+      ':marin-community: <https://github.com/marin-community|marin-community> · 130 :mega:',
+    ])
+  })
+
   it('omits the LinkedIn search link for single-token names (junk results)', () => {
     const denis = bits({ login: 'grach0v', name: 'Denis', followers: 5, public_repos: 51, star_sum: 1, gh_created_at: '2017-01-01T00:00:00Z' })
-    const msg = renderActorOp(ev(7, '2026-08-11T10:15:00Z', 'star', 'marin-community/marin', 'grach0v'), denis, 1255, undefined, 'https://watchy.oa.dev')
-    expect(msg.username).toBe("Denis ⭐'d marin")
+    const msg = renderActorOp([ev(7, '2026-08-11T10:15:00Z', 'star', 'marin-community/marin', 'grach0v')], denis, { counts: [1255], dashboardUrl: 'https://watchy.oa.dev' })
+    expect(msg.username).toBe('Denis ⭐ marin')
     expect(msg.text.split('\n')).toEqual([
       '<https://github.com/grach0v|grach0v> · 5 followers · 51 repos (1 :star:) · joined 2017',
       '<https://github.com/marin-community/marin|marin> · <https://watchy.oa.dev/?t=marin-community%2Fmarin|1,255 :star:>',
     ])
   })
 
+  it('links a linkedin.com/in blog as the LI profile instead of search + blog line', () => {
+    const mike = bits({
+      login: 'mikepolcari', name: 'Mike Polcari', location: 'Orinda, CA', followers: 25,
+      public_repos: 1, gh_created_at: '2008-01-01T00:00:00Z', blog: 'https://www.linkedin.com/in/polcari/',
+    })
+    const msg = renderActorOp([ev(5, '2026-08-10T10:09:00Z', 'star', 'Open-Athena/marin-dna', 'mikepolcari')], mike, { counts: [17] })
+    expect(msg.text.split('\n')).toEqual([
+      '<https://github.com/mikepolcari|mikepolcari> · 25 followers · 1 repo · joined 2008'
+        + ' · :linkedin: <https://www.linkedin.com/in/polcari/|polcari>',
+      'Orinda, CA',
+      '<https://github.com/Open-Athena/marin-dna|marin-dna> · 17 :star:',
+    ])
+  })
+
+  it('bolds notable counts and teases high-star repos', () => {
+    const mz = bits({
+      login: 'MzeroMiko', name: 'Liu Yue', followers: 173, public_repos: 25, star_sum: 3663,
+      gh_created_at: '2018-01-01T00:00:00Z', top_repos: '[{"n":"MzeroMiko/VMamba","s":2300},{"n":"MzeroMiko/mamba-mini","s":180}]',
+    })
+    const msg = renderActorOp([ev(4, '2026-08-10T09:27:00Z', 'star', 'marin-community/marin', 'MzeroMiko')], mz, { counts: [1250] })
+    expect(msg.text.split('\n')[0]).toBe(
+      '<https://github.com/MzeroMiko|MzeroMiko> · *173 followers* · 25 repos (*3,663 :star:*'
+        + ' · <https://github.com/MzeroMiko/VMamba|VMamba> 2,300) · joined 2018'
+        + ' · :linkedin: <https://www.linkedin.com/search/results/people/?keywords=Liu%20Yue|search>',
+    )
+  })
+
   it('low-info actors get just the event-ref line, login-voiced', () => {
     const anon = bits({ login: 'mearcstapa-gqz', followers: 1 })
-    const msg = renderActorOp(ev(9, '2026-08-10T16:20:00Z', 'follow', 'marin-community', 'mearcstapa-gqz'), anon, 130)
-    expect(msg.username).toBe('mearcstapa-gqz 📣 followed marin-community')
+    const msg = renderActorOp([ev(9, '2026-08-10T16:20:00Z', 'follow', 'marin-community', 'mearcstapa-gqz')], anon, { counts: [130] })
+    expect(msg.username).toBe('mearcstapa-gqz 🔔 marin-community')
     expect(msg.text.split('\n')).toEqual([
       '<https://github.com/marin-community|marin-community> · 130 :mega:',
     ])
   })
 
-  it('bio, orgs, blog, and research stack between the stats and event-ref lines', () => {
+  it('folds company/location/bio/blog into one line (employer → LI company search) and stacks orgs/research', () => {
     const a = bits({
-      login: 'chiphuyen', name: 'Chip Huyen', location: 'San Francisco', bio: 'ML sys',
-      blog: 'huyenchip.com', twitter: 'chipro', followers: 23923, public_repos: 30,
+      login: 'chiphuyen', name: 'Chip Huyen', company: 'Voltron Data', location: 'San Francisco', bio: 'ML\nsys',
+      blog: 'huyenchip.com/', twitter: 'chipro', followers: 23923, public_repos: 30,
       gh_created_at: '2015-03-01T00:00:00Z', orgs: '["a","b"]', research: 'Author of Designing ML Systems.',
     })
-    const msg = renderActorOp(ev(1, '2024-04-28T01:00:00Z', 'star', 'marin-community/levanter', 'chiphuyen'), a)
-    expect(msg.username).toBe("Chip Huyen ⭐'d levanter")
+    const msg = renderActorOp([ev(1, '2024-04-28T01:00:00Z', 'star', 'marin-community/levanter', 'chiphuyen')], a)
+    expect(msg.username).toBe('Chip Huyen ⭐ levanter')
     expect(msg.text.split('\n')).toEqual([
-      '<https://github.com/chiphuyen|chiphuyen> · 23,923 followers · 30 repos · joined 2015'
+      '<https://github.com/chiphuyen|chiphuyen> · *23,923 followers* · 30 repos · joined 2015'
         + ' · 𝕏 <https://x.com/chipro|@chipro>'
         + ' · :linkedin: <https://www.linkedin.com/search/results/people/?keywords=Chip%20Huyen|search>',
-      'San Francisco',
-      '_ML sys_',
+      '<https://www.linkedin.com/search/results/companies/?keywords=Voltron%20Data|Voltron Data> · San Francisco'
+        + ' · _ML sys_ · :globe_with_meridians: <https://huyenchip.com/|huyenchip.com>',
       'orgs: a, b',
-      ':globe_with_meridians: <https://huyenchip.com|huyenchip.com>',
       ':mag: Author of Designing ML Systems.',
       '<https://github.com/marin-community/levanter|levanter>',
     ])
+  })
+
+  it('links @org-style companies to their GitHub org page', () => {
+    const jake = bits({
+      login: 'JakeKalstad', name: 'Jake Kalstad', company: '@Santurce-Software-LLC', followers: 12,
+      public_repos: 61, star_sum: 45, gh_created_at: '2010-01-01T00:00:00Z',
+    })
+    const msg = renderActorOp([ev(6, '2026-08-10T12:25:00Z', 'star', 'Open-Athena/marin-dna', 'JakeKalstad')], jake, { counts: [18] })
+    expect(msg.text.split('\n')[1]).toBe('<https://github.com/Santurce-Software-LLC|@Santurce-Software-LLC>')
   })
 })
 

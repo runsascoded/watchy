@@ -16,17 +16,28 @@ async function ghJson(token: string, path: string): Promise<any | null> {
   return resp.json()
 }
 
-/** Σ stargazers across the actor's owned repos — up to 2 pages (200 repos); GH's
- * repo listing can't sort by stars, so prolific owners undercount slightly. */
-async function fetchStarSum(token: string, login: string): Promise<number | null> {
+interface RepoStats {
+  sum: number
+  top: Array<{ n: string; s: number }> // top 3 owned repos by stars (stars > 0)
+}
+
+/** Σ stargazers + top repos across the actor's owned repos — up to 2 pages (200
+ * repos); GH's repo listing can't sort by stars, so prolific owners undercount slightly. */
+async function fetchRepoStats(token: string, login: string): Promise<RepoStats | null> {
   let sum = 0
+  const all: Array<{ n: string; s: number }> = []
   for (let page = 1; page <= 2; page++) {
     const repos = await ghJson(token, `/users/${encodeURIComponent(login)}/repos?per_page=100&type=owner&page=${page}`)
-    if (!repos) return page === 1 ? null : sum
-    sum += repos.reduce((s: number, r: any) => s + (r.stargazers_count ?? 0), 0)
+    if (!repos) return page === 1 ? null : { sum, top: [] }
+    for (const r of repos) {
+      const s = r.stargazers_count ?? 0
+      sum += s
+      if (s > 0) all.push({ n: r.full_name, s })
+    }
     if (repos.length < 100) break
   }
-  return sum
+  all.sort((a, b) => b.s - a.s)
+  return { sum, top: all.slice(0, 3) }
 }
 
 interface BskyProfile {
@@ -64,6 +75,7 @@ export async function enrichActors(env: Env): Promise<number> {
       `SELECT DISTINCT e.login FROM events e
        LEFT JOIN actors a ON a.login = e.login
        WHERE a.login IS NULL OR a.fetched_at < ? OR (a.star_sum IS NULL AND a.followers IS NOT NULL)
+          OR (a.star_sum > 0 AND a.top_repos IS NULL)
        ORDER BY e.id DESC LIMIT ${CAP_PER_RUN}`,
     )
     .bind(cutoff)
@@ -74,20 +86,20 @@ export async function enrichActors(env: Env): Promise<number> {
   for (const { login } of results) {
     const u = await ghJson(env.WATCHY_TOKEN, `/users/${encodeURIComponent(login)}`)
     const orgs = u ? await ghJson(env.WATCHY_TOKEN, `/users/${encodeURIComponent(login)}/orgs`) : null
-    const starSum = u ? await fetchStarSum(env.WATCHY_TOKEN, login) : null
+    const repoStats = u ? await fetchRepoStats(env.WATCHY_TOKEN, login) : null
     const bsky = u ? await findBsky(login, u.twitter_username ?? null, u.name ?? null) : null
     // Upsert (not INSERT OR REPLACE) so refreshes preserve research/research_at
     await env.DB
       .prepare(
         `INSERT INTO actors
-         (login, name, company, location, bio, blog, twitter, followers, following, public_repos, gh_created_at, orgs, star_sum, bsky_handle, bsky_followers, fetched_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         (login, name, company, location, bio, blog, twitter, followers, following, public_repos, gh_created_at, orgs, star_sum, top_repos, bsky_handle, bsky_followers, fetched_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(login) DO UPDATE SET
            name = excluded.name, company = excluded.company, location = excluded.location,
            bio = excluded.bio, blog = excluded.blog, twitter = excluded.twitter,
            followers = excluded.followers, following = excluded.following,
            public_repos = excluded.public_repos, gh_created_at = excluded.gh_created_at,
-           orgs = excluded.orgs, star_sum = excluded.star_sum,
+           orgs = excluded.orgs, star_sum = excluded.star_sum, top_repos = excluded.top_repos,
            bsky_handle = excluded.bsky_handle, bsky_followers = excluded.bsky_followers,
            fetched_at = excluded.fetched_at`,
       )
@@ -104,7 +116,8 @@ export async function enrichActors(env: Env): Promise<number> {
         u?.public_repos ?? null,
         u?.created_at ?? null,
         orgs ? JSON.stringify(orgs.map((o: any) => o.login)) : null,
-        starSum,
+        repoStats?.sum ?? null,
+        repoStats?.top.length ? JSON.stringify(repoStats.top) : null,
         bsky?.handle ?? null,
         bsky?.followersCount ?? null,
         now,

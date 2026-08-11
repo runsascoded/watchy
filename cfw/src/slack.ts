@@ -50,12 +50,13 @@ export function iconUrl(target: string, kind: string): string {
   return `${ICON_BASE}/${ICON_ORGS.has(org) ? org : 'gh'}-${kind}.png?v=3`
 }
 
-// Sender-line verbs for actor-voiced OPs — literal emoji (Slack usernames don't render shortcodes)
+// Sender-line verbs for actor-voiced OPs — literal emoji, tenseless ("user ⭐ repo");
+// Slack usernames don't render shortcodes. 🔔/🔕 = follow/unfollow (subscribe/mute).
 const OP_VERB: Record<string, string> = {
-  star: "⭐'d",
-  unstar: "💔 un-⭐'d",
-  follow: '📣 followed',
-  unfollow: '🔇 unfollowed',
+  star: '⭐',
+  unstar: '💔',
+  follow: '🔔',
+  unfollow: '🔕',
 }
 
 function shortTarget(target: string): string {
@@ -69,60 +70,89 @@ export interface ActorOpMsg {
   text: string
 }
 
+export interface ActorOpOpts {
+  counts?: (number | undefined)[] // running total per event, parallel to `events`
+  slackUser?: string
+  dashboardUrl?: string
+  orgEmoji?: Record<string, string> // org → workspace-emoji name
+}
+
 /**
- * Actor-voiced OP (specs/actor-intel.md v5-v7): the event rides the sender line
- * ("Naveen Nagarajan ⭐'d marin", their GH avatar); the body is the actor's bits
- * + a compact event-ref line. Low-info actors get just the event ref. No action
+ * Actor-voiced OP (specs/actor-intel.md v5-v8): the event(s) ride the sender line
+ * ("Naveen Nagarajan ⭐ marin", their GH avatar; back-to-back events by the same
+ * actor combine comma-delimited); the body is the actor's bits + one compact
+ * event-ref line per event. Low-info actors get just the event refs. No action
  * timestamp — the Slack post ts is close enough at the 5-minute cron cadence.
  */
-export function renderActorOp(
-  e: EventRow,
-  a: ActorBits | null,
-  count?: number,
-  slackUser?: string,
-  dashboardUrl?: string,
-  orgEmoji?: string,
-): ActorOpMsg {
-  const { unit } = KINDS[e.kind]
-  const short = shortTarget(e.target)
-  let username = `${a?.name ?? e.login} ${OP_VERB[e.kind]} ${short}`
-  if (username.length > 80) username = `${e.login} ${OP_VERB[e.kind]} ${short}`
+export function renderActorOp(events: EventRow[], a: ActorBits | null, opts: ActorOpOpts = {}): ActorOpMsg {
+  const { counts = [], slackUser, dashboardUrl, orgEmoji = {} } = opts
+  const login = events[0].login
+  const acts = events.map(e => `${OP_VERB[e.kind]} ${shortTarget(e.target)}`).join(', ')
+  let username = `${a?.name ?? login} ${acts}`
+  if (username.length > 80) username = `${login} ${acts}`
   const fmt = (n: number) => n.toLocaleString('en-US')
+  const bold = (notable: boolean, s: string) => (notable ? `*${s}*` : s)
   const lines: string[] = []
-  const gh = `<https://github.com/${e.login}|${e.login}>` + (slackUser ? ` (<@${slackUser}>)` : '')
+  const gh = `<https://github.com/${login}|${login}>` + (slackUser ? ` (<@${slackUser}>)` : '')
   if (a && (a.name || a.company || a.bio || (a.followers ?? 0) >= 50)) {
+    // A linkedin.com/in/… blog IS their LI profile — link it (best-case LI signal)
+    // and drop both the blind people-search and the redundant blog entry.
+    const blogUrl = a.blog ? (a.blog.startsWith('http') ? a.blog : `https://${a.blog}`) : null
+    const liProfile = blogUrl?.match(/linkedin\.com\/in\/([^/?#]+)/)
     // LI people-search is only worth linking when we have a real full name to key on —
     // single-token or handle-like names return junk results (worse than no link)
     const liName = a.name?.trim()
+    const li = liProfile
+      ? `:linkedin: <${blogUrl}|${liProfile[1]}>`
+      : liName?.includes(' ')
+        ? `:linkedin: <https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(liName)}|search>`
+        : null
+    // Tease high-star repos alongside the star sum ("mostly VMamba 2,300")
+    const tops: Array<{ n: string; s: number }> = a.top_repos ? JSON.parse(a.top_repos) : []
+    const topStr = tops.filter(t => t.s >= 200).slice(0, 2)
+      .map(t => ` · <https://github.com/${t.n}|${shortTarget(t.n)}> ${fmt(t.s)}`).join('')
     lines.push([
       gh,
-      a.followers != null && `${fmt(a.followers)} follower${a.followers === 1 ? '' : 's'}`,
-      a.public_repos != null && `${fmt(a.public_repos)} repo${a.public_repos === 1 ? '' : 's'}${a.star_sum ? ` (${fmt(a.star_sum)} :star:)` : ''}`,
+      a.followers != null && bold(a.followers >= 100, `${fmt(a.followers)} follower${a.followers === 1 ? '' : 's'}`),
+      a.public_repos != null && `${fmt(a.public_repos)} repo${a.public_repos === 1 ? '' : 's'}${a.star_sum ? ` (${bold(a.star_sum >= 1000, `${fmt(a.star_sum)} :star:`)}${topStr})` : ''}`,
       a.gh_created_at && `joined ${a.gh_created_at.slice(0, 4)}`,
       a.bsky_handle && `:bsky: <https://bsky.app/profile/${a.bsky_handle}|${a.bsky_followers != null ? fmt(a.bsky_followers) : '?'}>`,
       a.twitter && `𝕏 <https://x.com/${a.twitter}|@${a.twitter}>`,
-      liName?.includes(' ') && `:linkedin: <https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(liName)}|search>`,
+      li,
     ].filter(Boolean).join(' · '))
-    const where = [a.company, a.location].filter(Boolean).join(' · ')
+    // Company · location · bio · blog fold into one line; employer links to LI
+    // company search (or the GH org page for @org-style companies)
+    const co = a.company?.trim()
+    const coPart = co
+      ? co.startsWith('@')
+        ? `<https://github.com/${co.slice(1)}|${co}>`
+        : `<https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(co)}|${co}>`
+      : null
+    const bio = a.bio?.replace(/\s+/g, ' ').trim()
+    const blogPart = blogUrl && !liProfile
+      && `:globe_with_meridians: <${blogUrl}|${blogUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '')}>`
+    const where = [coPart, a.location, bio && `_${bio}_`, blogPart].filter(Boolean).join(' · ')
     if (where) lines.push(where)
-    if (a.bio) lines.push(`_${a.bio}_`)
     const orgs: string[] = a.orgs ? JSON.parse(a.orgs) : []
     if (orgs.length) lines.push(`orgs: ${orgs.slice(0, 6).join(', ')}${orgs.length > 6 ? ` +${orgs.length - 6}` : ''}`)
-    if (a.blog) lines.push(`:globe_with_meridians: <${a.blog.startsWith('http') ? a.blog : `https://${a.blog}`}|${a.blog.replace(/^https?:\/\//, '')}>`)
     if (a.research) lines.push(`:mag: ${a.research}`)
   } else if (slackUser) {
     lines.push(gh)
   }
-  const tgt = `${orgEmoji ? `:${orgEmoji}: ` : ''}<https://github.com/${e.target}|${short}>`
-  if (count == null) {
-    lines.push(tgt)
-  } else {
-    const total = `${fmt(count)} ${unit}`
-    lines.push(`${tgt} · ${dashboardUrl ? `<${dashboardUrl}/?t=${encodeURIComponent(e.target)}|${total}>` : total}`)
-  }
+  events.forEach((e, i) => {
+    const org = e.target.split('/')[0]
+    const tgt = `${orgEmoji[org] ? `:${orgEmoji[org]}: ` : ''}<https://github.com/${e.target}|${shortTarget(e.target)}>`
+    const count = counts[i]
+    if (count == null) {
+      lines.push(tgt)
+    } else {
+      const total = `${fmt(count)} ${KINDS[e.kind].unit}`
+      lines.push(`${tgt} · ${dashboardUrl ? `<${dashboardUrl}/?t=${encodeURIComponent(e.target)}|${total}>` : total}`)
+    }
+  })
   return {
     username,
-    icon_url: `https://github.com/${encodeURIComponent(e.login)}.png?size=96`,
+    icon_url: `https://github.com/${encodeURIComponent(login)}.png?size=96`,
     text: lines.join('\n'),
   }
 }
@@ -146,24 +176,42 @@ export async function syncSlack(env: Env): Promise<number> {
     .bind(...binds)
     .all<EventRow>()
 
+  // Back-to-back events by the same actor combine into one message
+  const groups: EventRow[][] = []
+  for (const e of results) {
+    const last = groups[groups.length - 1]
+    if (last && last[0].login === e.login) last.push(e)
+    else groups.push([e])
+  }
+
   const researchOn = !!env.ANTHROPIC_API_KEY
   const minF = parseInt(env.RESEARCH_MIN_FOLLOWERS ?? '100', 10)
   let posted = 0
-  for (const e of results) {
+  for (const events of groups) {
+    const { login } = events[0]
     // Actor-voiced OPs need the enrichment row (and the research blurb when configured
     // for a notable actor) — stop the batch to preserve chronology; enrichActors and
     // researchActors run earlier in the same tick, so the wait is ≤ one tick.
     const actor = await env.DB
       .prepare('SELECT * FROM actors WHERE login = ?')
-      .bind(e.login)
+      .bind(login)
       .first<ActorBits & { research_at: string | null }>()
     if (!actor) break
     if (researchOn && (actor.followers ?? 0) >= minF && !actor.research_at) break
-    const cnt = await env.DB
-      .prepare('SELECT count FROM counts WHERE target = ? ORDER BY ts DESC LIMIT 1')
-      .bind(e.target)
-      .first<{ count: number }>()
-    const msg = renderActorOp(e, actor, cnt?.count, userMap[e.login], env.DASHBOARD_URL, (env.SLACK_ORG_EMOJI ?? {})[e.target.split('/')[0]])
+    const counts: (number | undefined)[] = []
+    for (const e of events) {
+      const cnt = await env.DB
+        .prepare('SELECT count FROM counts WHERE target = ? ORDER BY ts DESC LIMIT 1')
+        .bind(e.target)
+        .first<{ count: number }>()
+      counts.push(cnt?.count)
+    }
+    const msg = renderActorOp(events, actor, {
+      counts,
+      slackUser: userMap[login],
+      dashboardUrl: env.DASHBOARD_URL,
+      orgEmoji: env.SLACK_ORG_EMOJI,
+    })
     const resp = await fetch('https://slack.com/api/chat.postMessage', {
       method: 'POST',
       headers: {
@@ -173,20 +221,22 @@ export async function syncSlack(env: Env): Promise<number> {
       body: JSON.stringify({
         channel: env.SLACK_CHANNEL_ID,
         ...msg,
-        metadata: { event_type: 'watchy_event', event_payload: { id: e.id, date: e.ts.slice(0, 10) } },
+        metadata: { event_type: 'watchy_event', event_payload: { id: events[0].id, date: events[0].ts.slice(0, 10) } },
         unfurl_links: false,
         unfurl_media: false,
       }),
     })
     const body = await resp.json<{ ok: boolean; ts?: string; error?: string }>()
     if (!body.ok) {
-      // Leave the event unledgered — next run retries; don't block later events on a
+      // Leave the events unledgered — next run retries; don't block later events on a
       // transient failure, but stop this batch to preserve chronological posting order
-      console.error(`slack post failed for event ${e.id}: ${body.error}`)
+      console.error(`slack post failed for event ${events[0].id}: ${body.error}`)
       break
     }
-    await env.DB.prepare('INSERT INTO slack_posts (event_id, ts) VALUES (?, ?)').bind(e.id, body.ts).run()
-    posted++
+    await env.DB.batch(events.map(e =>
+      env.DB.prepare('INSERT INTO slack_posts (event_id, ts) VALUES (?, ?)').bind(e.id, body.ts),
+    ))
+    posted += events.length
     if (posted < results.length) await new Promise(r => setTimeout(r, PACE_MS))
   }
   return posted
@@ -207,6 +257,7 @@ export interface ActorBits {
   orgs: string | null
   bsky_handle: string | null
   bsky_followers: number | null
+  top_repos: string | null
   research: string | null
 }
 
