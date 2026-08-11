@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Deploy the www frontend: `deploy-www [public|oa|both]` (default both).
+#
+# The two site flavors differ at BUILD time and DEPLOY time (specs/auth-gate.md):
+#   public → watchy-www, personal CF acct (repo-root direnv). Plain `pnpm build`
+#     (dist/); deployed FROM dist/ cwd so the internal-only www/functions/
+#     (auth gate + /api proxy) is NOT bundled.
+#   oa → watchy-internal (watchy.oa.dev), OA acct (marin-gcs-usage direnv).
+#     `pnpm build:oa` = VITE_INTERNAL=1 into dist-oa/ (separate outDir so the
+#     flavors can't cross-contaminate); deployed from www/ cwd so functions/
+#     IS bundled.
+# The worker's assets binding stays ../www/dist (public flavor).
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+WRANGLER="$ROOT/cfw/node_modules/.bin/wrangler"
+cd "$ROOT/www"
+flavor="${1:-both}"
+
+if [[ "$flavor" == public || "$flavor" == both ]]; then
+  pnpm build
+  (cd dist && direnv exec "$ROOT" "$WRANGLER" pages deploy . --project-name watchy-www --branch main)
+fi
+if [[ "$flavor" == oa || "$flavor" == both ]]; then
+  pnpm build:oa
+  direnv exec "$HOME/c/oa/marin-gcs-usage" "$WRANGLER" pages deploy dist-oa --project-name watchy-internal --branch main
+fi
