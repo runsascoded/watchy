@@ -96,8 +96,8 @@ export function renderActorOp(
     const liName = a.name?.trim()
     lines.push([
       gh,
-      a.followers != null && `${fmt(a.followers)} followers`,
-      a.public_repos != null && `${fmt(a.public_repos)} repos${a.star_sum ? ` (${fmt(a.star_sum)} :star:)` : ''}`,
+      a.followers != null && `${fmt(a.followers)} follower${a.followers === 1 ? '' : 's'}`,
+      a.public_repos != null && `${fmt(a.public_repos)} repo${a.public_repos === 1 ? '' : 's'}${a.star_sum ? ` (${fmt(a.star_sum)} :star:)` : ''}`,
       a.gh_created_at && `joined ${a.gh_created_at.slice(0, 4)}`,
       a.bsky_handle && `:bsky: <https://bsky.app/profile/${a.bsky_handle}|${a.bsky_followers != null ? fmt(a.bsky_followers) : '?'}>`,
       a.twitter && `𝕏 <https://x.com/${a.twitter}|@${a.twitter}>`,

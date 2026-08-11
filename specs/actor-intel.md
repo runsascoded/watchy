@@ -93,7 +93,9 @@ Demo approved → production format. Every event message now *is* the actor:
 
 RW: per-event OPs are voluminous/low-signal for channel members' unread badges. Proposal: a "Week of M/D" OP each week; the same actor-voiced posts become thread replies (no channel-level notification unless following the thread); a post-hoc weekly summary (Tues AM, covering prior 7d) becomes the higher-signal OP — possibly with color replies highlighting notable actors, before/after star counts, plot graphics. Workshop in a private staging channel first (couple of people are in #github-engagement now).
 
-Staging: private `#watchy-staging` (`C0BPFJS550A`, created via Slack MCP — bot token lacks `groups:write`; bot + RW members). Demo posted 2026-08-11 (`tmp/weekly-thread-demo.py`): "Week of 8/10" OP + this week's 16 prod messages replayed as thread replies (actor-voiced ones with dt-stripped senders).
+Staging: private `#watchy-staging` (`C0BPFJS550A`, created via Slack MCP — bot token lacks `groups:write`; bot + RW members).
+
+Demo v2 (2026-08-11, after RW feedback on v1's mixed-format replay): OP = repo-grouped WTD scoreboard, sender "📅 Week of 8/10" + `:date:` icon (no watchy branding), lines `:org: <repo> · base → <dash|current :unit:>`; replies = per-action verbose append-log, all 16 events re-rendered via production `renderActorOp` (`tmp/render-week.mts` → `tmp/weekly-demo-v2.py`). In prod the OP would be `chat.update`'d on each action (edits don't notify — replies notify thread followers only). Workspace already has `:marin:`/`:marin-community:`/`:open-athena:`/`:oa:` emojis, so `SLACK_ORG_EMOJI` can be populated now.
 
 ## Status — ✅ shipped 2026-08-10 (research pending key)
 
