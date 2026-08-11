@@ -1,4 +1,5 @@
 import type { Env } from './collect'
+import { ensureWeeklyThread, updateWeeklyOp, weekStartOf } from './weekly'
 
 // Mirrors src/watchy/slack.py (render_event / event metadata) — keep in sync.
 // Shortcodes, not literal emoji: Slack normalizes literals in stored text.
@@ -219,9 +220,22 @@ export async function syncSlack(env: Env): Promise<number> {
 
   const researchOn = !!env.ANTHROPIC_API_KEY
   const minF = parseInt(env.RESEARCH_MIN_FOLLOWERS ?? '100', 10)
+  const weekOps = new Map<string, string>() // week_start → OP ts (created on demand)
   let posted = 0
   for (const events of groups) {
     const { login } = events[0]
+    // Event msgs post as replies under the week's OP (specs/actor-intel.md v9)
+    const wk = weekStartOf(events[0].ts)
+    let opTs = weekOps.get(wk)
+    if (!opTs) {
+      try {
+        opTs = await ensureWeeklyThread(env, wk)
+        weekOps.set(wk, opTs)
+      } catch (e) {
+        console.error(`ensureWeeklyThread(${wk}) failed: ${(e as Error).message}`)
+        break // don't post channel-level while the thread is unavailable; retry next tick
+      }
+    }
     // Actor-voiced OPs need the enrichment row (and the research blurb when configured
     // for a notable actor) — stop the batch to preserve chronology; enrichActors and
     // researchActors run earlier in the same tick, so the wait is ≤ one tick.
@@ -253,6 +267,7 @@ export async function syncSlack(env: Env): Promise<number> {
       },
       body: JSON.stringify({
         channel: env.SLACK_CHANNEL_ID,
+        thread_ts: opTs,
         ...msg,
         metadata: { event_type: 'watchy_event', event_payload: { id: events[0].id, date: events[0].ts.slice(0, 10) } },
         unfurl_links: false,
@@ -271,6 +286,15 @@ export async function syncSlack(env: Env): Promise<number> {
     ))
     posted += events.length
     if (posted < results.length) await new Promise(r => setTimeout(r, PACE_MS))
+  }
+  if (posted) {
+    for (const [wk, opTs] of weekOps) {
+      try {
+        await updateWeeklyOp(env, wk, opTs)
+      } catch (e) {
+        console.error(`updateWeeklyOp(${wk}) failed: ${(e as Error).message}`) // next batch retries
+      }
+    }
   }
   return posted
 }

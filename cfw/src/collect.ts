@@ -13,6 +13,7 @@ export interface Env {
   SLACK_MATCHES?: string[]
   SLACK_USER_MAP?: Record<string, string>
   SLACK_ORG_EMOJI?: Record<string, string>
+  SLACK_WORKSPACE_URL?: string
   SESSION_SECRET?: string
   ADMIN_EMAILS?: string[]
   DASHBOARD_URL?: string

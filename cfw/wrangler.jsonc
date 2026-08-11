@@ -38,6 +38,8 @@
     "RESEARCH_MIN_FOLLOWERS": "100",
     // Target prefixes whose events get posted to Slack (SLACK_BOT_TOKEN secret + these two must all be set)
     "SLACK_CHANNEL_ID": "C0BKZUV1SKH",
+    // Base for constructing in-thread permalinks (weekly-OP Notable ↳ links)
+    "SLACK_WORKSPACE_URL": "https://openathena.slack.com",
     "SLACK_MATCHES": ["Open-Athena", "marin-community"],
     // Org → workspace-emoji name, prefixed before repo short-names in event msgs.
     // Emoji must exist in the workspace or Slack renders the literal shortcode

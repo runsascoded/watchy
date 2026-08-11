@@ -123,6 +123,17 @@ All in production `renderActorOp`/`syncSlack` (deployed; staging demo v3 shows t
 - **Event msgs are Block Kit now**: mrkdwn renders anchor shortcodes *outside* the link (stored text keeps `<url|1,257 :star:>` but the UI extracts the emoji — DOM-verified), so `renderActorOp` emits `blocks`: a `section` (mrkdwn bits lines, unchanged) + a `rich_text` block for event-ref lines whose total links carry literal ⭐/🔔 inside the anchor (`UNIT_CHAR`); org emoji stay as `emoji` elements outside links (custom emoji can't nest in `link`). `text` remains the mrkdwn fallback. Staging replies chat.update'd to the new shape (`tmp/edit-staging-replies.py`); poller mirrors prod `blocks` verbatim.
 - **User-token sender aside**: no way to drop the APP badge while customizing sender — overrides need bot + `chat:write.customize` (always badged, anti-spoofing); user-token posts are the real authed user only (modern granular-scope apps lost the legacy `as_user=false` override).
 
+## v9 — weekly threads in production (RW approval, 2026-08-11)
+
+Staging demo approved → #github-engagement transformed:
+
+- **Migration 0012 `weekly_threads`** (`week_start` Monday-ISO PK → OP `ts`).
+- **`cfw/src/weekly.ts`**: `weekStartOf`/`weekLabel`; pure `buildWeeklyOp(weekStart, {events, counts, actors, replyLink}, {dashboardUrl, orgEmoji})` (org-grouped scoreboard: org header + repo `rich_text_list` bullets when the org saw follows, flat lines otherwise; Notable bullets with affil + top-repo/Σ⭐ + ↳); `ensureWeeklyThread` (posts "Week of M/D" OP, `:date:` icon, `watchy_weekly` metadata, records row); `updateWeeklyOp` (D1 → blocks → chat.update). Notable ↳ permalinks constructed from `SLACK_WORKSPACE_URL` var (no getPermalink calls).
+- **`syncSlack`**: each group posts with `thread_ts` of its event-week's OP (created on demand; ensure-failure stops the batch rather than posting channel-level); after a batch, every touched week's OP is rebuilt.
+- **Transform** (`tmp/prod-weekly-transform.py` → `build-prod-op.mts` → `prod-weekly-finish.py`): captured the 18 flat msg ts, posted the prod OP (`1786475715.836179`) + 17 re-rendered replies, repointed `slack_posts.ts` to the reply ts, built + applied the OP scoreboard via the worker's own builder, deleted the 18 flat msgs, verified zero stragglers.
+- Staging poller retired (`#github-engagement-staging` can be archived whenever).
+- Open: move the Monday-14:00-UTC summary cron to Tue AM as the higher-signal channel-level OP (discussed, not yet requested).
+
 ## Status — ✅ shipped 2026-08-10 (research pending key)
 
 - [x] Feed org icons (grouped headers + inline lines + actions column)
