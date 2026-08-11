@@ -52,18 +52,18 @@ describe('renderEvent', () => {
 describe('renderActorReply', () => {
   const bits = (over: Partial<ActorBits>): ActorBits => ({
     login: 'x', name: null, company: null, location: null, bio: null, blog: null, twitter: null,
-    followers: null, public_repos: null, gh_created_at: null, orgs: null, research: null, ...over,
+    followers: null, public_repos: null, star_sum: null, gh_created_at: null, orgs: null, research: null, ...over,
   })
 
   it('renders the full profile-bits stack', () => {
     const a = bits({
       name: 'Chip Huyen', location: 'San Francisco', bio: 'ML sys', blog: 'huyenchip.com', twitter: 'chipro',
-      followers: 23923, public_repos: 30, gh_created_at: '2015-03-01T00:00:00Z',
+      followers: 23923, public_repos: 30, star_sum: 8306, gh_created_at: '2015-03-01T00:00:00Z',
       orgs: '["a","b"]', research: 'Author of Designing ML Systems.',
     })
     expect(renderActorReply(a, 'https://watchy.oa.dev')!.split('\n')).toEqual([
       'San Francisco',
-      '23,923 followers · 30 repos · joined 2015',
+      '23,923 followers · 30 repos · 8,306 :star: on their repos · joined 2015',
       '_ML sys_',
       'orgs: a, b',
       '<https://x.com/chipro|@chipro> · <https://huyenchip.com|huyenchip.com>',

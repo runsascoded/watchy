@@ -116,6 +116,7 @@ export interface ActorBits {
   twitter: string | null
   followers: number | null
   public_repos: number | null
+  star_sum: number | null
   gh_created_at: string | null
   orgs: string | null
   research: string | null
@@ -132,6 +133,7 @@ export function renderActorReply(a: ActorBits, dashboardUrl?: string): string | 
   const stats = [
     a.followers != null && `${fmt(a.followers)} followers`,
     a.public_repos != null && `${fmt(a.public_repos)} repos`,
+    a.star_sum != null && a.star_sum > 0 && `${fmt(a.star_sum)} :star: on their repos`,
     a.gh_created_at && `joined ${a.gh_created_at.slice(0, 4)}`,
   ].filter(Boolean)
   if (stats.length) lines.push(stats.join(' · '))
@@ -161,7 +163,7 @@ export async function syncActorReplies(env: Env): Promise<number> {
   const { results } = await env.DB
     .prepare(
       `SELECT sp.event_id, sp.ts AS thread_ts, e.login, a.name, a.company, a.location, a.bio, a.blog,
-              a.twitter, a.followers, a.public_repos, a.gh_created_at, a.orgs, a.research, a.research_at
+              a.twitter, a.followers, a.public_repos, a.star_sum, a.gh_created_at, a.orgs, a.research, a.research_at
        FROM slack_posts sp
        JOIN events e ON e.id = sp.event_id
        JOIN actors a ON a.login = e.login

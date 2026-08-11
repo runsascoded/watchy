@@ -61,7 +61,8 @@ Feedback: table too x-scrolly; JOINED/REPOS ~irrelevant; want following count (w
 
 ## v4 — TTs, sort/scoring controls, actor-voiced replies, short OP links (RW, 2026-08-10)
 
-- **/actors**: floating-ui `Tooltip` component (`components/Tooltip.tsx`, shared `.tt` styling) replaces native titles — interest cells get a per-actor breakdown (fame/ratio/recency with numbers), headers, event rows (kind + full ts + churn), orgs "+n", 🦋 (bsky count).
+- **/actors**: floating-ui `Tooltip` component (`components/Tooltip.tsx`, shared `.tt` styling) replaces native titles — interest cells get a per-actor breakdown (fame/ratio/recency with numbers), headers, event rows (kind + full ts + churn), orgs "+n", 🦋 (bsky count). Follow-up sweep converted the stragglers (`TargetLink`, feed ts/source, Access, Graphs legend, Icons) — no native `title=` left.
+- **Thread replies include `star_sum`** ("8,306 :star: on their repos") in the stats line — it's computed, not a GH profile field: Σ `stargazers_count` over the repo listing.
 - **Sort/scoring controls** (all URL-prm'd): `s` = interest | recent-action (exact rev-chron by newest eligible event), `hl` half-life days input, `w` window days (0 = ∞; only actions newer than this count toward score/recent). Rev-chron ≈ the hl→0 limit of the score, but floats underflow there — `sort=recent` is the robust special case.
 - **Thread replies speak as the actor**: `chat.postMessage` `username` = GH name (fallback login) + `icon_url` = their GH avatar; the bold name line dropped from the body (redundant with author).
 - **Event msgs**: target link text is now the repo short-name (org identity rides on the per-message avatar); optional `:org:` workspace-emoji prefix outside the link via `SLACK_ORG_EMOJI` var (empty until emojis are uploaded to the workspace — else Slack shows literal shortcodes). Python mirror (`src/watchy/slack.py render_event`) updated for byte-parity incl. dashboard-link + emoji params.

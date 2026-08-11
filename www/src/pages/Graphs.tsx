@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
+import { Tooltip } from '../components/Tooltip'
 import { get, type TargetCount } from '../api'
 import { inScope, owner } from '../scope'
 
@@ -187,11 +188,13 @@ function Section({ title, all }: { title: string; all: TargetCount[] }) {
       <h2>{title}</h2>
       <div className="legend">
         {series.map(s => (
-          <button key={s.target} className="li" title={`${s.target} — click to remove`} onClick={() => remove(s.target)}>
+          <Tooltip key={s.target} tip={`${s.target} — click to remove`}>
+          <button className="li" onClick={() => remove(s.target)}>
             <span className="swatch" style={{ background: `var(--s${s.slot + 1})` }} />
             <Favicon login={s.owner} />
             {s.label}
           </button>
+          </Tooltip>
         ))}
         <span className="adder">
           <input

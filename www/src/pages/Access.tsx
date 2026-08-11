@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Tooltip } from '../components/Tooltip'
 import { ApiError, get, post } from '../api'
 import { SignInPanel, useWhoami } from '../auth'
 
@@ -120,7 +121,7 @@ export default function Access() {
                 <td><b>{g.label}</b></td>
                 <td>{g.email}</td>
                 <td>{g.scopes}</td>
-                <td title={`by ${g.created_by}`}>{g.created_at.slice(0, 10)}</td>
+                <td><Tooltip tip={`by ${g.created_by}`}><span>{g.created_at.slice(0, 10)}</span></Tooltip></td>
                 <td>{g.expires_at?.slice(0, 10) ?? '—'}</td>
                 <td className="num">{g.use_count}</td>
                 <td>{g.last_used_at ? g.last_used_at.slice(0, 16).replace('T', ' ') + 'Z' : '—'}</td>

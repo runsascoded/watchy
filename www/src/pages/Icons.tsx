@@ -1,3 +1,4 @@
+import { Tooltip } from '../components/Tooltip'
 import { useQuery } from '@tanstack/react-query'
 
 const KINDS = ['star', 'unstar', 'follow', 'unfollow']
@@ -43,7 +44,7 @@ export default function Icons() {
                 const f = m.get(k)
                 return (
                   <td key={k}>
-                    {f && <a href={`/icons/${f}`} title={f}><img src={`/icons/${f}`} alt={f} /></a>}
+                    {f && <Tooltip tip={f}><a href={`/icons/${f}`}><img src={`/icons/${f}`} alt={f} /></a></Tooltip>}
                   </td>
                 )
               })}

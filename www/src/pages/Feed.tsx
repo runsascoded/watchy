@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { boolParam, stringParam, useUrlState } from 'use-prms'
 import { get, type Event, type TargetCount } from '../api'
 import { inScope } from '../scope'
+import { Tooltip } from '../components/Tooltip'
 import { TargetLink } from '../target'
 
 const KIND_EMOJI: Record<Event['kind'], string> = {
@@ -65,8 +66,8 @@ export default function Feed() {
       <span className="emoji">{KIND_EMOJI[e.kind]}</span>
       <a href={`https://github.com/${e.login}`} className="login">{e.login}</a>
       {showTarget && <>{' '}{KIND_VERB[e.kind]}{' '}<TargetLink target={e.target} /></>}
-      <span className="ts" title={e.ts}>{time(e.ts)}</span>
-      {e.source === 'git' && <span className="source" title={`backfilled from .watchy@${e.sha}`}>git</span>}
+      <Tooltip tip={e.ts}><span className="ts">{time(e.ts)}</span></Tooltip>
+      {e.source === 'git' && <Tooltip tip={`backfilled from .watchy@${e.sha}`}><span className="source">git</span></Tooltip>}
     </li>
   )
 

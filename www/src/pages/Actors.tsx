@@ -236,9 +236,9 @@ export default function Actors() {
                       <div className={`act${e.active ? '' : ' gone'}`} key={i}>
                         <Tooltip tip={`${e.kind} · ${e.ts}${e.active ? '' : ' — no longer active'}`}>
                           <span>{KIND_EMOJI[e.kind] ?? e.kind}</span>
-                          {' '}<TargetLink target={e.target} />
-                          <span className="dim ts">{e.ts.slice(0, 10)}</span>
                         </Tooltip>
+                        {' '}<TargetLink target={e.target} />
+                        <span className="dim ts">{e.ts.slice(0, 10)}</span>
                       </div>
                     ))}
                     {a.events.length > MAX_ACTS && <div className="dim">+{a.events.length - MAX_ACTS} more</div>}
