@@ -63,11 +63,6 @@ function shortTarget(target: string): string {
   return i < 0 ? target : target.slice(i + 1)
 }
 
-/** "8/10 22:46Z" — year implied */
-function shortDt(ts: string): string {
-  return `${parseInt(ts.slice(5, 7), 10)}/${parseInt(ts.slice(8, 10), 10)} ${ts.slice(11, 16)}Z`
-}
-
 export interface ActorOpMsg {
   username: string
   icon_url: string
@@ -75,9 +70,10 @@ export interface ActorOpMsg {
 }
 
 /**
- * Actor-voiced OP (specs/actor-intel.md v5/v6): the event rides the sender line
- * ("Naveen Nagarajan ⭐'d marin — 8/10 22:46Z", their GH avatar); the body is the
- * actor's bits + a compact event-ref line. Low-info actors get just the event ref.
+ * Actor-voiced OP (specs/actor-intel.md v5-v7): the event rides the sender line
+ * ("Naveen Nagarajan ⭐'d marin", their GH avatar); the body is the actor's bits
+ * + a compact event-ref line. Low-info actors get just the event ref. No action
+ * timestamp — the Slack post ts is close enough at the 5-minute cron cadence.
  */
 export function renderActorOp(
   e: EventRow,
@@ -89,13 +85,15 @@ export function renderActorOp(
 ): ActorOpMsg {
   const { unit } = KINDS[e.kind]
   const short = shortTarget(e.target)
-  const dt = shortDt(e.ts)
-  let username = `${a?.name ?? e.login} ${OP_VERB[e.kind]} ${short} — ${dt}`
-  if (username.length > 80) username = `${e.login} ${OP_VERB[e.kind]} ${short} — ${dt}`
+  let username = `${a?.name ?? e.login} ${OP_VERB[e.kind]} ${short}`
+  if (username.length > 80) username = `${e.login} ${OP_VERB[e.kind]} ${short}`
   const fmt = (n: number) => n.toLocaleString('en-US')
   const lines: string[] = []
   const gh = `<https://github.com/${e.login}|${e.login}>` + (slackUser ? ` (<@${slackUser}>)` : '')
   if (a && (a.name || a.company || a.bio || (a.followers ?? 0) >= 50)) {
+    // LI people-search is only worth linking when we have a real full name to key on —
+    // single-token or handle-like names return junk results (worse than no link)
+    const liName = a.name?.trim()
     lines.push([
       gh,
       a.followers != null && `${fmt(a.followers)} followers`,
@@ -103,7 +101,7 @@ export function renderActorOp(
       a.gh_created_at && `joined ${a.gh_created_at.slice(0, 4)}`,
       a.bsky_handle && `:bsky: <https://bsky.app/profile/${a.bsky_handle}|${a.bsky_followers != null ? fmt(a.bsky_followers) : '?'}>`,
       a.twitter && `𝕏 <https://x.com/${a.twitter}|@${a.twitter}>`,
-      `:linkedin: <https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(a.name ?? e.login)}|search>`,
+      liName?.includes(' ') && `:linkedin: <https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(liName)}|search>`,
     ].filter(Boolean).join(' · '))
     const where = [a.company, a.location].filter(Boolean).join(' · ')
     if (where) lines.push(where)

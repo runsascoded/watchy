@@ -63,7 +63,7 @@ describe('renderActorOp', () => {
 
   it('rides the event on the sender line and stacks the actor bits in the body', () => {
     const msg = renderActorOp(e, nn, 1253, undefined, 'https://watchy.oa.dev')
-    expect(msg.username).toBe("Naveen Nagarajan ⭐'d marin — 8/10 22:46Z")
+    expect(msg.username).toBe("Naveen Nagarajan ⭐'d marin")
     expect(msg.icon_url).toBe('https://github.com/nnagarajan.png?size=96')
     expect(msg.text.split('\n')).toEqual([
       '<https://github.com/nnagarajan|nnagarajan> · 6 followers · 79 repos (3 :star:) · joined 2014'
@@ -73,10 +73,20 @@ describe('renderActorOp', () => {
     ])
   })
 
+  it('omits the LinkedIn search link for single-token names (junk results)', () => {
+    const denis = bits({ login: 'grach0v', name: 'Denis', followers: 5, public_repos: 51, star_sum: 1, gh_created_at: '2017-01-01T00:00:00Z' })
+    const msg = renderActorOp(ev(7, '2026-08-11T10:15:00Z', 'star', 'marin-community/marin', 'grach0v'), denis, 1255, undefined, 'https://watchy.oa.dev')
+    expect(msg.username).toBe("Denis ⭐'d marin")
+    expect(msg.text.split('\n')).toEqual([
+      '<https://github.com/grach0v|grach0v> · 5 followers · 51 repos (1 :star:) · joined 2017',
+      '<https://github.com/marin-community/marin|marin> · <https://watchy.oa.dev/?t=marin-community%2Fmarin|1,255 :star:>',
+    ])
+  })
+
   it('low-info actors get just the event-ref line, login-voiced', () => {
     const anon = bits({ login: 'mearcstapa-gqz', followers: 1 })
     const msg = renderActorOp(ev(9, '2026-08-10T16:20:00Z', 'follow', 'marin-community', 'mearcstapa-gqz'), anon, 130)
-    expect(msg.username).toBe('mearcstapa-gqz 📣 followed marin-community — 8/10 16:20Z')
+    expect(msg.username).toBe('mearcstapa-gqz 📣 followed marin-community')
     expect(msg.text.split('\n')).toEqual([
       '<https://github.com/marin-community|marin-community> · 130 :mega:',
     ])
@@ -89,7 +99,7 @@ describe('renderActorOp', () => {
       gh_created_at: '2015-03-01T00:00:00Z', orgs: '["a","b"]', research: 'Author of Designing ML Systems.',
     })
     const msg = renderActorOp(ev(1, '2024-04-28T01:00:00Z', 'star', 'marin-community/levanter', 'chiphuyen'), a)
-    expect(msg.username).toBe("Chip Huyen ⭐'d levanter — 4/28 01:00Z")
+    expect(msg.username).toBe("Chip Huyen ⭐'d levanter")
     expect(msg.text.split('\n')).toEqual([
       '<https://github.com/chiphuyen|chiphuyen> · 23,923 followers · 30 repos · joined 2015'
         + ' · 𝕏 <https://x.com/chipro|@chipro>'

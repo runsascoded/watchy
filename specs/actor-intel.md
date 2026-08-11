@@ -83,6 +83,18 @@ Demo approved → production format. Every event message now *is* the actor:
 - **Retired**: `syncActorReplies`/`renderActorReply` (threads gone); `iconUrl` no longer used for event posts (kept for py parity/bootstrap); `slack_posts.reply_ts` is historical.
 - `renderEvent` retained for the py-bootstrap parity contract only.
 
+## v7 — de-clutter (RW, 2026-08-11)
+
+- **No dt in the sender line**: date is implied by the post date; with the cron tightened `*/10` → `*/5` the Slack post ts is within ~5min of the action ts, so the exact time goes too. (Cost check: a normal tick is ~16-25 GH subrequests — count-delta gate means stargazer pages only fetch on change — so 288 ticks/day is far under GH's 5k/hr; CF cron invocations are ~free.)
+- **LinkedIn search gated on a real full name** (≥2 tokens): `keywords=imrobot` / `keywords=Denis` searches return junk — worse than no link. Handle-like and single-token names now get no LI link. Deferred: when `ANTHROPIC_API_KEY` lands, the research agent could return a *judged* LI profile URL (structured output) instead of the blind search link.
+- **"0 repos" kept** — it's signal (throwaway/new account).
+
+### Open (discussed, not built): weekly-thread channel structure
+
+RW: per-event OPs are voluminous/low-signal for channel members' unread badges. Proposal: a "Week of M/D" OP each week; the same actor-voiced posts become thread replies (no channel-level notification unless following the thread); a post-hoc weekly summary (Tues AM, covering prior 7d) becomes the higher-signal OP — possibly with color replies highlighting notable actors, before/after star counts, plot graphics. Workshop in a private staging channel first (couple of people are in #github-engagement now).
+
+Staging: private `#watchy-staging` (`C0BPFJS550A`, created via Slack MCP — bot token lacks `groups:write`; bot + RW members). Demo posted 2026-08-11 (`tmp/weekly-thread-demo.py`): "Week of 8/10" OP + this week's 16 prod messages replayed as thread replies (actor-voiced ones with dt-stripped senders).
+
 ## Status — ✅ shipped 2026-08-10 (research pending key)
 
 - [x] Feed org icons (grouped headers + inline lines + actions column)

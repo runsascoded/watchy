@@ -3,8 +3,9 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-06-01",
   "triggers": {
-    // */10 = collect + slack + enrich; Monday 14:00 UTC = weekly summary (WEEKLY_CRON in index.ts)
-    "crons": ["*/10 * * * *", "0 14 * * 1"]
+    // */5 = collect + slack + enrich (tight enough that Slack post ts ≈ action ts);
+    // Monday 14:00 UTC = weekly summary (WEEKLY_CRON in index.ts)
+    "crons": ["*/5 * * * *", "0 14 * * 1"]
   },
   "d1_databases": [
     {
