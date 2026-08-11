@@ -95,6 +95,26 @@ function liSearch(a: Actor): string {
 
 const fmt = (n: number | null) => n?.toLocaleString() ?? ''
 
+/** GH-hovercard-style preview, built entirely from enrichment data (no OG fetch needed). */
+function ActorCard({ a }: { a: Actor }) {
+  const where = [a.company, a.location].filter(Boolean).join(' · ')
+  return (
+    <div className="card">
+      <img src={`https://github.com/${a.login}.png?size=96`} alt="" />
+      <div>
+        <div><b>{a.name ?? a.login}</b>{a.name && <span className="dim"> · {a.login}</span>}</div>
+        {where && <div className="dim">{where}</div>}
+        <div>
+          {fmt(a.followers)} followers
+          {a.following != null && <span className="dim"> · {fmt(a.following)} following</span>}
+          {a.star_sum != null && a.star_sum > 0 && <span className="dim"> · {fmt(a.star_sum)} ⭐</span>}
+        </div>
+        {a.bio && <div className="card-bio">{a.bio}</div>}
+      </div>
+    </div>
+  )
+}
+
 function Breakdown({ a, s, hl }: { a: Actor; s: Score; hl: number }) {
   const reachParts = [
     `${fmt(a.followers ?? 0)} GH`,
@@ -220,7 +240,9 @@ export default function Actors() {
                 <tr key={a.login}>
                   <td className="who">
                     {orgs.includes('Open-Athena') && <span className="chip oa">OA</span>}
-                    <a href={`https://github.com/${a.login}`}><b>{a.login}</b></a>
+                    <Tooltip tip={<ActorCard a={a} />}>
+                      <a href={`https://github.com/${a.login}`}><b>{a.login}</b></a>
+                    </Tooltip>
                     {a.name && <div className="dim">{a.name}</div>}
                     {where && <div className="dim where">{where}</div>}
                   </td>
@@ -250,14 +272,24 @@ export default function Actors() {
                     )}
                   </td>
                   <td className="links">
-                    {a.twitter && <a href={`https://x.com/${a.twitter}`}>𝕏</a>}
+                    {a.twitter && (
+                      <Tooltip tip={`@${a.twitter} on X`}>
+                        <a href={`https://x.com/${a.twitter}`}>𝕏</a>
+                      </Tooltip>
+                    )}
                     {a.bsky_handle && (
-                      <Tooltip tip={`${fmt(a.bsky_followers) || '?'} bsky followers`}>
+                      <Tooltip tip={`${a.bsky_handle} on Bluesky · ${fmt(a.bsky_followers) || '?'} followers`}>
                         <a href={`https://bsky.app/profile/${a.bsky_handle}`}>🦋</a>
                       </Tooltip>
                     )}
-                    <a href={liSearch(a)}>in</a>
-                    {a.blog && <a href={a.blog.startsWith('http') ? a.blog : `https://${a.blog}`}>🌐</a>}
+                    <Tooltip tip={`${a.name ?? a.login} on LinkedIn (prefilled people-search)`}>
+                      <a href={liSearch(a)}>in</a>
+                    </Tooltip>
+                    {a.blog && (
+                      <Tooltip tip={a.blog.replace(/^https?:\/\//, '')}>
+                        <a href={a.blog.startsWith('http') ? a.blog : `https://${a.blog}`}>🌐</a>
+                      </Tooltip>
+                    )}
                   </td>
                   <td className="bio">{a.bio}</td>
                 </tr>

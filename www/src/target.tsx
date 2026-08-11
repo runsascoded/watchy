@@ -13,8 +13,14 @@ export function shortName(target: string): string {
 }
 
 export function TargetLink({ target }: { target: string }) {
+  const tip = (
+    <span className="tgt-tip">
+      <img src={`https://github.com/${orgOf(target)}.png?size=96`} alt="" />
+      {target}
+    </span>
+  )
   return (
-    <Tooltip tip={target}>
+    <Tooltip tip={tip}>
       <a href={`https://github.com/${target}`} className="target">
         <img className="org-icon" src={`https://github.com/${orgOf(target)}.png?size=40`} alt="" loading="lazy" />
         {shortName(target)}

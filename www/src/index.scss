@@ -238,6 +238,14 @@ a { color: var(--link); text-decoration: none;
 .tt { z-index: 20; background: var(--card); border: 1px solid var(--border); border-radius: 6px;
   padding: .3rem .55rem; font-size: .78rem; box-shadow: 0 2px 8px rgb(0 0 0 / .25); max-width: 26rem;
   .bd { display: grid; gap: .15rem; }
+  // GH-hovercard-style previews
+  .card { display: flex; gap: .6rem; align-items: flex-start; padding: .2rem; min-width: 16rem;
+    img { width: 48px; height: 48px; border-radius: 6px; flex: none; }
+    .card-bio { color: var(--dim); margin-top: .25rem; }
+  }
+  .tgt-tip { display: inline-flex; align-items: center; gap: .5rem;
+    img { width: 28px; height: 28px; border-radius: 5px; }
+  }
 }
 
 .runs-grid { display: flex; flex-wrap: wrap; gap: 3px; margin: .6rem 0; align-items: center;

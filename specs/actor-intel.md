@@ -67,6 +67,12 @@ Feedback: table too x-scrolly; JOINED/REPOS ~irrelevant; want following count (w
 - **Thread replies speak as the actor**: `chat.postMessage` `username` = GH name (fallback login) + `icon_url` = their GH avatar; the bold name line dropped from the body (redundant with author).
 - **Event msgs**: target link text is now the repo short-name (org identity rides on the per-message avatar); optional `:org:` workspace-emoji prefix outside the link via `SLACK_ORG_EMOJI` var (empty until emojis are uploaded to the workspace — else Slack shows literal shortcodes). Python mirror (`src/watchy/slack.py render_event`) updated for byte-parity incl. dashboard-link + emoji params.
 
+## v5 — hovercards + actor-voiced-OP experiment (RW, 2026-08-10)
+
+- **Links col TTs**: "@handle on X", "handle on Bluesky · N followers", "Name on LinkedIn (prefilled people-search)", blog host.
+- **`ActorCard` hovercard** on /actors logins — GH-hovercard-style (avatar, name·login, company·location, followers/following/Σ⭐, bio), built entirely from enrichment data (no OG fetching; a worker-side OG proxy would be needed for LinkedIn/X/blog previews — deferred). `TargetLink` tip upgraded to icon + full name.
+- **Actor-voiced OP demo** (event 3095, manual post; worker unchanged pending verdict): sender = "Naveen Nagarajan ⭐'d marin" + GH avatar; body = stats (`6 followers · 79 repos (3 ⭐) · joined 2014`) / links (gh · 🦋 · LinkedIn) / event ref (repo · ts · running-total→dashboard); no thread reply. Ledger repointed (`ts` updated, `reply_ts=''`). If adopted: `syncSlack` posts this shape directly and `syncActorReplies` retires.
+
 ## Status — ✅ shipped 2026-08-10 (research pending key)
 
 - [x] Feed org icons (grouped headers + inline lines + actions column)
