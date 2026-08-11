@@ -71,6 +71,21 @@ describe('renderActorOp', () => {
         + ' · :linkedin: <https://www.linkedin.com/search/results/people/?keywords=Naveen%20Nagarajan|search>',
       '<https://github.com/marin-community/marin|marin> · <https://watchy.oa.dev/?t=marin-community%2Fmarin|1,253 :star:>',
     ])
+    expect(msg.blocks).toEqual([
+      { type: 'section', text: { type: 'mrkdwn', text: msg.text.split('\n')[0] } },
+      {
+        type: 'rich_text',
+        elements: [{
+          type: 'rich_text_section',
+          elements: [
+            { type: 'link', url: 'https://github.com/marin-community/marin', text: 'marin' },
+            { type: 'text', text: ' · ' },
+            // literal ⭐ INSIDE the anchor — mrkdwn shortcodes render outside links, rich_text unicode doesn't
+            { type: 'link', url: 'https://watchy.oa.dev/?t=marin-community%2Fmarin', text: '1,253 ⭐' },
+          ],
+        }],
+      },
+    ])
   })
 
   it('combines back-to-back events by the same actor into one comma-delimited sender', () => {
@@ -84,6 +99,32 @@ describe('renderActorOp', () => {
       ':marin-community: <https://github.com/marin-community/marin|marin> · 1,252 :star:',
       ':marin-community: <https://github.com/marin-community|marin-community> · 130 :bell:',
     ])
+    // low-info: no section block, just the rich_text event refs (org emoji as elements)
+    expect(msg.blocks).toEqual([{
+      type: 'rich_text',
+      elements: [
+        {
+          type: 'rich_text_section',
+          elements: [
+            { type: 'emoji', name: 'marin-community' },
+            { type: 'text', text: ' ' },
+            { type: 'link', url: 'https://github.com/marin-community/marin', text: 'marin' },
+            { type: 'text', text: ' · ' },
+            { type: 'text', text: '1,252 ⭐' },
+          ],
+        },
+        {
+          type: 'rich_text_section',
+          elements: [
+            { type: 'emoji', name: 'marin-community' },
+            { type: 'text', text: ' ' },
+            { type: 'link', url: 'https://github.com/marin-community', text: 'marin-community' },
+            { type: 'text', text: ' · ' },
+            { type: 'text', text: '130 🔔' },
+          ],
+        },
+      ],
+    }])
   })
 
   it('omits the LinkedIn search link for single-token names (junk results)', () => {

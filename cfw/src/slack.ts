@@ -76,8 +76,13 @@ export function companyKeywords(co: string): string {
 export interface ActorOpMsg {
   username: string
   icon_url: string
-  text: string
+  text: string // mrkdwn fallback (notifications, older clients)
+  blocks: unknown[]
 }
+
+// Literal unicode for rich_text link anchors (shortcodes render outside mrkdwn
+// anchors; literal emoji inside rich_text `link` text stay in the link)
+const UNIT_CHAR: Record<string, string> = { star: '⭐', unstar: '⭐', follow: '🔔', unfollow: '🔔' }
 
 export interface ActorOpOpts {
   counts?: (number | undefined)[] // running total per event, parallel to `events`
@@ -151,21 +156,37 @@ export function renderActorOp(events: EventRow[], a: ActorBits | null, opts: Act
   } else if (slackUser) {
     lines.push(gh)
   }
-  events.forEach((e, i) => {
+  const blocks: unknown[] = []
+  if (lines.length) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: lines.join('\n') } })
+  // Event-ref lines as rich_text so the total link can carry its ⭐/🔔 INSIDE the
+  // anchor — Slack renders mrkdwn-anchor shortcodes outside the link.
+  const refSections = events.map((e, i) => {
     const org = e.target.split('/')[0]
-    const tgt = `${orgEmoji[org] ? `:${orgEmoji[org]}: ` : ''}<https://github.com/${e.target}|${shortTarget(e.target)}>`
+    const short = shortTarget(e.target)
     const count = counts[i]
-    if (count == null) {
-      lines.push(tgt)
-    } else {
-      const total = `${fmt(count)} ${KINDS[e.kind].unit}`
-      lines.push(`${tgt} · ${dashboardUrl ? `<${dashboardUrl}/?t=${encodeURIComponent(e.target)}|${total}>` : total}`)
+    // mrkdwn fallback line
+    const tgt = `${orgEmoji[org] ? `:${orgEmoji[org]}: ` : ''}<https://github.com/${e.target}|${short}>`
+    const total = count != null ? `${fmt(count)} ${KINDS[e.kind].unit}` : null
+    lines.push(total == null ? tgt : `${tgt} · ${dashboardUrl ? `<${dashboardUrl}/?t=${encodeURIComponent(e.target)}|${total}>` : total}`)
+    // rich_text elements
+    const els: unknown[] = []
+    if (orgEmoji[org]) els.push({ type: 'emoji', name: orgEmoji[org] }, { type: 'text', text: ' ' })
+    els.push({ type: 'link', url: `https://github.com/${e.target}`, text: short })
+    if (count != null) {
+      els.push({ type: 'text', text: ' · ' })
+      const totalChar = `${fmt(count)} ${UNIT_CHAR[e.kind]}`
+      els.push(dashboardUrl
+        ? { type: 'link', url: `${dashboardUrl}/?t=${encodeURIComponent(e.target)}`, text: totalChar }
+        : { type: 'text', text: totalChar })
     }
+    return { type: 'rich_text_section', elements: els }
   })
+  blocks.push({ type: 'rich_text', elements: refSections })
   return {
     username,
     icon_url: `https://github.com/${encodeURIComponent(login)}.png?size=96`,
     text: lines.join('\n'),
+    blocks,
   }
 }
 
