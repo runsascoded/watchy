@@ -67,7 +67,9 @@ function affil(a: WeekActor): { text: string; url: string | null } | null {
   const city = a.location?.split(',')[0].trim() || null
   if (co) {
     const url = a.li_company_url ?? `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(co)}`
-    const text = city && !SELF_LOCATING.test(co) && !co.toLowerCase().includes(city.toLowerCase()) ? `${co} (${city})` : co
+    // A curated company URL implies the org is unambiguous — no "(city)" needed
+    // (nor for self-locating institutions, or when the city is already in the name)
+    const text = city && !a.li_company_url && !SELF_LOCATING.test(co) && !co.toLowerCase().includes(city.toLowerCase()) ? `${co} (${city})` : co
     return { text, url }
   }
   return city ? { text: city, url: null } : null

@@ -299,11 +299,15 @@ a { color: var(--link); text-decoration: none;
       border: 1px solid var(--border); border-radius: 6px; padding: .3rem .5rem; width: 22rem; max-width: 100%;
     }
   }
-  .tbl { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+  // Scroll INSIDE .tbl (not the page) so the sticky header actually floats —
+  // sticky can't escape an overflow ancestor, and .tbl needs overflow-x anyway
+  .tbl { overflow: auto; max-height: calc(100vh - 11rem); border: 1px solid var(--border); border-radius: 8px; }
   table { border-collapse: collapse; font-size: .82rem; width: 100%; }
-  th { position: sticky; top: 0; background: var(--card); color: var(--dim); font-weight: 600;
+  th { position: sticky; top: 0; z-index: 2; background: var(--card); color: var(--dim); font-weight: 600;
     font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; text-align: left;
-    padding: .45rem .55rem; border-bottom: 1px solid var(--border); }
+    padding: .45rem .55rem;
+    // border-collapse makes sticky headers shed their border-bottom on scroll
+    box-shadow: 0 1px 0 var(--border); }
   td { padding: .4rem .55rem; border-bottom: 1px solid var(--border); vertical-align: top; }
   tr:last-child td { border-bottom: none; }
   .who { white-space: nowrap;
@@ -327,7 +331,9 @@ a { color: var(--link); text-decoration: none;
   .digest code { font-size: .82em; }
   .orgs { max-width: 11rem; }
   .bio { min-width: 16rem; color: var(--dim); }
-  .links a { margin-right: .45rem; }
+  .links a { margin-right: .45rem; white-space: nowrap; }
+  .links .cnt { margin-left: .25em; font-size: .74rem; color: var(--dim); }
+  .bsky-logo { width: .8em; height: .72em; fill: #1185fe; vertical-align: -.02em; }
   .chip { display: inline-block; background: var(--card); border: 1px solid var(--border);
     border-radius: 4px; padding: 0 .3rem; font-size: .7rem; margin: 0 .15rem .15rem 0; }
   .chip.oa { border-color: var(--fg); font-weight: 700; margin-right: .35rem; }
