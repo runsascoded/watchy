@@ -8,8 +8,8 @@ import { TargetLink } from '../target'
 const KIND_EMOJI: Record<Event['kind'], string> = {
   star: '⭐️',
   unstar: '💔',
-  follow: '📣',
-  unfollow: '🔇',
+  follow: '🔔',
+  unfollow: '🔕',
 }
 const KIND_VERB: Record<Event['kind'], string> = {
   star: 'starred',
@@ -78,8 +78,8 @@ export default function Feed() {
           <option value="">all kinds</option>
           <option value="star">⭐️ star</option>
           <option value="unstar">💔 unstar</option>
-          <option value="follow">📣 follow</option>
-          <option value="unfollow">🔇 unfollow</option>
+          <option value="follow">🔔 follow</option>
+          <option value="unfollow">🔕 unfollow</option>
         </select>
         <select value={target} onChange={e => setTarget(e.target.value)}>
           <option value="">all targets</option>

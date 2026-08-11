@@ -20,7 +20,7 @@ describe('renderSummary', () => {
     expect(renderSummary(BASE).split('\n')).toEqual([
       ':calendar: *Weekly watch summary* · 2026-07-30 → 2026-08-06',
       ':star: <https://github.com/marin-community/marin|marin-community/marin>: +12 (−2) → *1,237*',
-      ':mega: <https://github.com/marin-community|marin-community>: +4 → *126*',
+      ':bell: <https://github.com/marin-community|marin-community>: +4 → *126*',
       ':telescope: Notable new actors: <https://github.com/norvig|Peter Norvig (norvig)> · 9,784 followers, Stanford; <https://github.com/XILDLX|XILDLX> · 140 followers',
     ])
   })

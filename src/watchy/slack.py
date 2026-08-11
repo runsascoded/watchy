@@ -19,8 +19,8 @@ EVENT_TYPE = "watchy_event"
 KINDS = {
     "star": ("starred", ":star:"),
     "unstar": ("unstarred", ":star:"),
-    "follow": ("followed", ":mega:"),
-    "unfollow": ("unfollowed", ":mega:"),
+    "follow": ("followed", ":bell:"),
+    "unfollow": ("unfollowed", ":bell:"),
 }
 
 

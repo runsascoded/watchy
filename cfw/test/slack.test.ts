@@ -21,12 +21,12 @@ describe('renderEvent', () => {
     )
   })
 
-  it('appends running totals (thousands-separated; :star: repos, :mega: orgs)', () => {
+  it('appends running totals (thousands-separated; :star: repos, :bell: orgs)', () => {
     expect(renderEvent(ev(1, '2026-08-04T22:30:40Z', 'star', 'marin-community/marin', 'XILDLX'), 1237)).toBe(
       '<https://github.com/XILDLX|XILDLX> starred <https://github.com/marin-community/marin|marin> · 2026-08-04 22:30Z · 1,237 :star:',
     )
     expect(renderEvent(ev(3, '2026-08-04T12:30:33Z', 'follow', 'marin-community', 'michaelmuchane'), 89)).toBe(
-      '<https://github.com/michaelmuchane|michaelmuchane> followed <https://github.com/marin-community|marin-community> · 2026-08-04 12:30Z · 89 :mega:',
+      '<https://github.com/michaelmuchane|michaelmuchane> followed <https://github.com/marin-community|marin-community> · 2026-08-04 12:30Z · 89 :bell:',
     )
   })
 
@@ -82,7 +82,7 @@ describe('renderActorOp', () => {
     expect(msg.username).toBe('mearcstapa-gqz ⭐ marin, 🔔 marin-community')
     expect(msg.text.split('\n')).toEqual([
       ':marin-community: <https://github.com/marin-community/marin|marin> · 1,252 :star:',
-      ':marin-community: <https://github.com/marin-community|marin-community> · 130 :mega:',
+      ':marin-community: <https://github.com/marin-community|marin-community> · 130 :bell:',
     ])
   })
 
@@ -128,7 +128,7 @@ describe('renderActorOp', () => {
     const msg = renderActorOp([ev(9, '2026-08-10T16:20:00Z', 'follow', 'marin-community', 'mearcstapa-gqz')], anon, { counts: [130] })
     expect(msg.username).toBe('mearcstapa-gqz 🔔 marin-community')
     expect(msg.text.split('\n')).toEqual([
-      '<https://github.com/marin-community|marin-community> · 130 :mega:',
+      '<https://github.com/marin-community|marin-community> · 130 :bell:',
     ])
   })
 
@@ -146,7 +146,7 @@ describe('renderActorOp', () => {
         + ' · :linkedin: <https://www.linkedin.com/search/results/people/?keywords=Chip%20Huyen|search>',
       '<https://www.linkedin.com/search/results/companies/?keywords=Voltron%20Data|Voltron Data> · San Francisco'
         + ' · _ML sys_ · :globe_with_meridians: <https://huyenchip.com/|huyenchip.com>',
-      'orgs: a, b',
+      'orgs: <https://github.com/a|a>, <https://github.com/b|b>',
       ':mag: Author of Designing ML Systems.',
       '<https://github.com/marin-community/levanter|levanter>',
     ])

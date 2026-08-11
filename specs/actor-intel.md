@@ -112,6 +112,13 @@ All in production `renderActorOp`/`syncSlack` (deployed; staging demo v3 shows t
 - **Weekly-OP demo v3** (`tmp/weekly-demo-v3.py`): sender "Week of 8/10" (📅 dropped — redundant with the `:date:` AVI); body org-grouped — org line (follows delta) with its repos as indented bullets, `:open-athena: marin-dna` flat (no OA-org activity); `notable:` line (followers ≥ 50 or star_sum ≥ 500 this week).
 - **thrds**: not usable for posting pre-rendered mrkdwn (`to_slack()` md conversion mangles it — `*bold*` → `_…_`); spec'd `raw=True` passthrough in `~/c/thrds/specs/raw-mrkdwn-passthrough.md`.
 
+### v8.1 follow-ups (RW, 2026-08-11)
+
+- **🔔/🔕 unified as the follow units too** — the `:mega:`/🔇 stragglers were the running-total unit (`130 :mega:`) and FE kind-emojis; all now `:bell:`/🔕 (cfw KINDS, summary.ts, py parity, www Feed/Actors/EventTimeline).
+- **Orgs linked** in actor msgs: `orgs:` entries → `<github.com/org|org>`.
+- **OP uses real Slack bullets**: mrkdwn `text` has no list syntax (v3 faked it with literal `•`); the OP is now `rich_text` blocks — org section, `rich_text_list` of its repos, flat sections for orgs without org-level activity, notable line (links as structured elements, emoji as `{type: emoji}`).
+- **Staging-sync poller** (`tmp/staging-sync.py`, backgrounded, 5-min cycles, 100-cycle cap): mirrors new prod `watchy_event` msgs into the staging thread verbatim (username/icon/text/metadata from prod history) and rebuilds the OP blocks from D1 (baselines = last pre-week `counts` row; notable = followers ≥ 50 or star_sum ≥ 500). State in `tmp/staging-sync-state.json` (mirrored prod ts).
+
 ## Status — ✅ shipped 2026-08-10 (research pending key)
 
 - [x] Feed org icons (grouped headers + inline lines + actions column)

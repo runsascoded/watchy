@@ -6,7 +6,7 @@ import { inScope } from '../scope'
 
 const { max, min, floor } = Math
 
-export const KIND_EMOJI: Record<string, string> = { star: '⭐', unstar: '💔', follow: '📣', unfollow: '🔇' }
+export const KIND_EMOJI: Record<string, string> = { star: '⭐', unstar: '💔', follow: '🔔', unfollow: '🔕' }
 
 const W = 800
 const H = 150

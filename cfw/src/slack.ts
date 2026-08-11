@@ -7,8 +7,8 @@ import type { Env } from './collect'
 const KINDS: Record<string, { verb: string; unit: string }> = {
   star: { verb: 'starred', unit: ':star:' },
   unstar: { verb: 'unstarred', unit: ':star:' },
-  follow: { verb: 'followed', unit: ':mega:' },
-  unfollow: { verb: 'unfollowed', unit: ':mega:' },
+  follow: { verb: 'followed', unit: ':bell:' },
+  unfollow: { verb: 'unfollowed', unit: ':bell:' },
 }
 
 const ICON_BASE = 'https://watchy.rbw.sh/icons'
@@ -134,7 +134,10 @@ export function renderActorOp(events: EventRow[], a: ActorBits | null, opts: Act
     const where = [coPart, a.location, bio && `_${bio}_`, blogPart].filter(Boolean).join(' · ')
     if (where) lines.push(where)
     const orgs: string[] = a.orgs ? JSON.parse(a.orgs) : []
-    if (orgs.length) lines.push(`orgs: ${orgs.slice(0, 6).join(', ')}${orgs.length > 6 ? ` +${orgs.length - 6}` : ''}`)
+    if (orgs.length) {
+      const links = orgs.slice(0, 6).map(o => `<https://github.com/${o}|${o}>`)
+      lines.push(`orgs: ${links.join(', ')}${orgs.length > 6 ? ` +${orgs.length - 6}` : ''}`)
+    }
     if (a.research) lines.push(`:mag: ${a.research}`)
   } else if (slackUser) {
     lines.push(gh)

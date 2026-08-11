@@ -26,7 +26,7 @@ def test_render_event_kinds():
 
 
 def test_render_event_running_totals():
-    # star/unstar suffix in repo stars (:star:), follow/unfollow in org followers (:mega:); thousands-separated
+    # star/unstar suffix in repo stars (:star:), follow/unfollow in org followers (:bell:); thousands-separated
     assert render_event(ev(1, "2026-08-04T22:30:40Z", "star", "marin-community/marin", "XILDLX"), count=1237) == (
         "<https://github.com/XILDLX|XILDLX> starred <https://github.com/marin-community/marin|marin> · 2026-08-04 22:30Z · 1,237 :star:"
     )
@@ -34,7 +34,7 @@ def test_render_event_running_totals():
         "<https://github.com/somebody|somebody> unstarred <https://github.com/marin-community/marin|marin> · 2026-08-05 03:12Z · 1,236 :star:"
     )
     assert render_event(ev(3, "2026-08-04T12:30:33Z", "follow", "marin-community", "michaelmuchane"), count=89) == (
-        "<https://github.com/michaelmuchane|michaelmuchane> followed <https://github.com/marin-community|marin-community> · 2026-08-04 12:30Z · 89 :mega:"
+        "<https://github.com/michaelmuchane|michaelmuchane> followed <https://github.com/marin-community|marin-community> · 2026-08-04 12:30Z · 89 :bell:"
     )
 
 
@@ -92,7 +92,7 @@ def test_actor_login():
     from watchy.slack import actor_login
 
     assert actor_login(":star: <https://github.com/postylem|postylem> starred <https://github.com/Open-Athena/Kelp|Kelp> · 2026-07-28 16:01Z") == "postylem"
-    assert actor_login("<https://github.com/dlwh|dlwh> followed <https://github.com/marin-community|marin-community> · 2026-08-06 12:00Z · 126 :mega:") == "dlwh"
+    assert actor_login("<https://github.com/dlwh|dlwh> followed <https://github.com/marin-community|marin-community> · 2026-08-06 12:00Z · 126 :bell:") == "dlwh"
     assert actor_login("no links here") is None
 
 

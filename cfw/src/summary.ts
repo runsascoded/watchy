@@ -33,7 +33,7 @@ export function renderSummary(s: WeekStats, dashboardUrl?: string): string {
     return lines.join('\n')
   }
   for (const d of s.deltas) {
-    const unit = d.kind === 'stars' ? ':star:' : ':mega:'
+    const unit = d.kind === 'stars' ? ':star:' : ':bell:'
     const minus = d.minus ? ` (−${d.minus})` : ''
     lines.push(`${unit} <https://github.com/${d.target}|${d.target}>: +${d.plus}${minus} → *${fmt(d.total)}*`)
   }

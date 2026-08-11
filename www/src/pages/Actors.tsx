@@ -6,7 +6,7 @@ import { exchangeKeyParam, SignInPanel } from '../auth'
 import { Tooltip } from '../components/Tooltip'
 import { TargetLink } from '../target'
 
-const KIND_EMOJI: Record<string, string> = { star: '⭐️', unstar: '💔', follow: '📣', unfollow: '🔇' }
+const KIND_EMOJI: Record<string, string> = { star: '⭐️', unstar: '💔', follow: '🔔', unfollow: '🔕' }
 const MAX_ACTS = 8
 const MAX_ORGS = 4
 const DAY_MS = 86_400_000
