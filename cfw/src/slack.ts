@@ -64,6 +64,15 @@ function shortTarget(target: string): string {
   return i < 0 ? target : target.slice(i + 1)
 }
 
+/** LI search keywords from a GH company string: strip parentheticals + @handles,
+ * keep the last comma segment — "IIIS, Tsinghua University" → "Tsinghua University",
+ * "Sereact (@sereact)" → "Sereact". Literal strings find nothing on LI. */
+export function companyKeywords(co: string): string {
+  const stripped = co.replace(/\(.*?\)/g, '').replace(/@[\w-]+/g, '').replace(/\s+/g, ' ').trim().replace(/[,;]+$/, '')
+  const segs = stripped.split(/,\s*/).filter(Boolean)
+  return segs.length ? segs[segs.length - 1] : co
+}
+
 export interface ActorOpMsg {
   username: string
   icon_url: string
@@ -126,7 +135,7 @@ export function renderActorOp(events: EventRow[], a: ActorBits | null, opts: Act
     const coPart = co
       ? co.startsWith('@')
         ? `<https://github.com/${co.slice(1)}|${co}>`
-        : `<https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(co)}|${co}>`
+        : `<https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(companyKeywords(co))}|${co}>`
       : null
     const bio = a.bio?.replace(/\s+/g, ' ').trim()
     const blogPart = blogUrl && !liProfile

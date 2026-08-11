@@ -1,7 +1,7 @@
 // Mirror of test/test_slack.py's render cases — expected strings must stay byte-identical
 // across renderEvent (here) and render_event (src/watchy/slack.py). CI runs both.
 import { describe, expect, it } from 'vitest'
-import { iconUrl, renderActorOp, renderEvent, type ActorBits } from '../src/slack'
+import { companyKeywords, iconUrl, renderActorOp, renderEvent, type ActorBits } from '../src/slack'
 
 const ev = (id: number, ts: string, kind: string, target: string, login: string) => ({ id, ts, kind, target, login })
 
@@ -150,6 +150,12 @@ describe('renderActorOp', () => {
       ':mag: Author of Designing ML Systems.',
       '<https://github.com/marin-community/levanter|levanter>',
     ])
+  })
+
+  it('cleans company strings into LI search keywords', () => {
+    expect(companyKeywords('IIIS, Tsinghua University')).toBe('Tsinghua University')
+    expect(companyKeywords('Sereact (@sereact)')).toBe('Sereact')
+    expect(companyKeywords('UCAS')).toBe('UCAS')
   })
 
   it('links @org-style companies to their GitHub org page', () => {
