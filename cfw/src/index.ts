@@ -7,7 +7,7 @@ import { buildWeekStats, renderSummary, weeklySummary } from './summary'
 const WEEKLY_CRON = '0 14 * * 1' // keep in sync with wrangler.jsonc triggers.crons
 import { maybeAlert } from './alerts'
 import { sendPushover } from './pushover'
-import { syncActorReplies, syncSlack } from './slack'
+import { syncSlack } from './slack'
 
 async function runCollection(env: Env, fullSweep: boolean): Promise<CollectResult> {
   const startedAt = new Date().toISOString()
@@ -33,12 +33,8 @@ async function runCollection(env: Env, fullSweep: boolean): Promise<CollectResul
   if (alerted) {
     await env.DB.prepare('UPDATE runs SET alerted = 1 WHERE id = ?').bind(runId).run()
   }
-  try {
-    const slackPosted = await syncSlack(env)
-    if (slackPosted) console.log(`slack: posted ${slackPosted} event(s)`)
-  } catch (e) {
-    console.error('syncSlack failed:', e)
-  }
+  // Enrichment and research run BEFORE posting: actor-voiced OPs embed the actor's
+  // bits (and research blurb, when configured), so syncSlack waits on those rows.
   try {
     const enriched = await enrichActors(env)
     if (enriched) console.log(`actors: enriched ${enriched}`)
@@ -52,10 +48,10 @@ async function runCollection(env: Env, fullSweep: boolean): Promise<CollectResul
     console.error('researchActors failed:', e)
   }
   try {
-    const replies = await syncActorReplies(env)
-    if (replies) console.log(`slack: replied ${replies}`)
+    const slackPosted = await syncSlack(env)
+    if (slackPosted) console.log(`slack: posted ${slackPosted} event(s)`)
   } catch (e) {
-    console.error('syncActorReplies failed:', e)
+    console.error('syncSlack failed:', e)
   }
   console.log(JSON.stringify({ runId, ...result }))
   return result

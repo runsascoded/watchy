@@ -73,6 +73,16 @@ Feedback: table too x-scrolly; JOINED/REPOS ~irrelevant; want following count (w
 - **`ActorCard` hovercard** on /actors logins — GH-hovercard-style (avatar, name·login, company·location, followers/following/Σ⭐, bio), built entirely from enrichment data (no OG fetching; a worker-side OG proxy would be needed for LinkedIn/X/blog previews — deferred). `TargetLink` tip upgraded to icon + full name.
 - **Actor-voiced OP demo** (event 3095, manual post; worker unchanged pending verdict): sender = "Naveen Nagarajan ⭐'d marin" + GH avatar; body = stats (`6 followers · 79 repos (3 ⭐) · joined 2014`) / links (gh · 🦋 · LinkedIn) / event ref (repo · ts · running-total→dashboard); no thread reply. Ledger repointed (`ts` updated, `reply_ts=''`). If adopted: `syncSlack` posts this shape directly and `syncActorReplies` retires.
 
+## v6 — actor-voiced OPs adopted (RW, 2026-08-10)
+
+Demo approved → production format. Every event message now *is* the actor:
+
+- **Sender**: `<name|login> <verb-emoji> <target-short> — M/D HH:MMZ` (e.g. `Naveen Nagarajan ⭐'d marin — 8/10 22:46Z`; literal emoji — usernames don't render shortcodes; falls back to login if > 80 chars). Icon = actor's GH avatar (displacing the org/kind icons; kind now rides the sender verb: ⭐'d / 💔 un-⭐'d / 📣 followed / 🔇 unfollowed).
+- **Body**: L1 `<gh|login> [(@slack)] · N followers · M repos (K :star:) · joined YYYY · :bsky: <N> · 𝕏 <@h> · :linkedin: <search>`; then company·location / `_bio_` / orgs / 🌐 blog / :mag: research as available; last line = event ref `<repo|short> · <dashboard|total unit>` (dt lives in the sender now). Low-info actors: event-ref line only, login-voiced.
+- **Pipeline reorder**: `enrichActors` → `researchActors` → `syncSlack` (OPs embed the bits, so posting *waits*: missing actor row or pending research for a notable actor stops the batch — chronology preserved, delay ≤ 1 tick). `enrichActors` now covers all-event actors (dropped the posted-only join — chicken-and-egg otherwise); `researchActors` keys on unposted matching events.
+- **Retired**: `syncActorReplies`/`renderActorReply` (threads gone); `iconUrl` no longer used for event posts (kept for py parity/bootstrap); `slack_posts.reply_ts` is historical.
+- `renderEvent` retained for the py-bootstrap parity contract only.
+
 ## Status — ✅ shipped 2026-08-10 (research pending key)
 
 - [x] Feed org icons (grouped headers + inline lines + actions column)

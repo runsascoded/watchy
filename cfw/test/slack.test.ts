@@ -1,7 +1,7 @@
 // Mirror of test/test_slack.py's render cases — expected strings must stay byte-identical
 // across renderEvent (here) and render_event (src/watchy/slack.py). CI runs both.
 import { describe, expect, it } from 'vitest'
-import { iconUrl, renderActorReply, renderEvent, type ActorBits } from '../src/slack'
+import { iconUrl, renderActorOp, renderEvent, type ActorBits } from '../src/slack'
 
 const ev = (id: number, ts: string, kind: string, target: string, login: string) => ({ id, ts, kind, target, login })
 
@@ -49,35 +49,58 @@ describe('renderEvent', () => {
   })
 })
 
-describe('renderActorReply', () => {
+describe('renderActorOp', () => {
   const bits = (over: Partial<ActorBits>): ActorBits => ({
     login: 'x', name: null, company: null, location: null, bio: null, blog: null, twitter: null,
-    followers: null, public_repos: null, star_sum: null, gh_created_at: null, orgs: null, research: null, ...over,
+    followers: null, public_repos: null, star_sum: null, gh_created_at: null, orgs: null,
+    bsky_handle: null, bsky_followers: null, research: null, ...over,
   })
+  const nn = bits({
+    login: 'nnagarajan', name: 'Naveen Nagarajan', followers: 6, public_repos: 79, star_sum: 3,
+    gh_created_at: '2014-08-25T03:38:06Z', bsky_handle: 'nnagarajan.bsky.social', bsky_followers: 12,
+  })
+  const e = ev(3095, '2026-08-10T22:46:20Z', 'star', 'marin-community/marin', 'nnagarajan')
 
-  it('renders the full profile-bits stack', () => {
-    const a = bits({
-      name: 'Chip Huyen', location: 'San Francisco', bio: 'ML sys', blog: 'huyenchip.com', twitter: 'chipro',
-      followers: 23923, public_repos: 30, star_sum: 8306, gh_created_at: '2015-03-01T00:00:00Z',
-      orgs: '["a","b"]', research: 'Author of Designing ML Systems.',
-    })
-    expect(renderActorReply(a, 'https://watchy.oa.dev')!.split('\n')).toEqual([
-      'San Francisco',
-      '23,923 followers · 30 repos · 8,306 :star: on their repos · joined 2015',
-      '_ML sys_',
-      'orgs: a, b',
-      '<https://x.com/chipro|@chipro> · <https://huyenchip.com|huyenchip.com>',
-      ':mag: Author of Designing ML Systems.',
-      '<https://watchy.oa.dev/actors|all actors →>',
+  it('rides the event on the sender line and stacks the actor bits in the body', () => {
+    const msg = renderActorOp(e, nn, 1253, undefined, 'https://watchy.oa.dev')
+    expect(msg.username).toBe("Naveen Nagarajan ⭐'d marin — 8/10 22:46Z")
+    expect(msg.icon_url).toBe('https://github.com/nnagarajan.png?size=96')
+    expect(msg.text.split('\n')).toEqual([
+      '<https://github.com/nnagarajan|nnagarajan> · 6 followers · 79 repos (3 :star:) · joined 2014'
+        + ' · :bsky: <https://bsky.app/profile/nnagarajan.bsky.social|12>'
+        + ' · :linkedin: <https://www.linkedin.com/search/results/people/?keywords=Naveen%20Nagarajan|search>',
+      '<https://github.com/marin-community/marin|marin> · <https://watchy.oa.dev/?t=marin-community%2Fmarin|1,253 :star:>',
     ])
   })
 
-  it('returns null for low-info actors (no name/company/bio, < 50 followers)', () => {
-    expect(renderActorReply(bits({ followers: 3, public_repos: 12, gh_created_at: '2024-01-01T00:00:00Z' }))).toBeNull()
+  it('low-info actors get just the event-ref line, login-voiced', () => {
+    const anon = bits({ login: 'mearcstapa-gqz', followers: 1 })
+    const msg = renderActorOp(ev(9, '2026-08-10T16:20:00Z', 'follow', 'marin-community', 'mearcstapa-gqz'), anon, 130)
+    expect(msg.username).toBe('mearcstapa-gqz 📣 followed marin-community — 8/10 16:20Z')
+    expect(msg.text.split('\n')).toEqual([
+      '<https://github.com/marin-community|marin-community> · 130 :mega:',
+    ])
   })
 
-  it('follower count alone clears the bar at 50', () => {
-    expect(renderActorReply(bits({ followers: 50 }))!.split('\n')).toEqual(['50 followers'])
+  it('bio, orgs, blog, and research stack between the stats and event-ref lines', () => {
+    const a = bits({
+      login: 'chiphuyen', name: 'Chip Huyen', location: 'San Francisco', bio: 'ML sys',
+      blog: 'huyenchip.com', twitter: 'chipro', followers: 23923, public_repos: 30,
+      gh_created_at: '2015-03-01T00:00:00Z', orgs: '["a","b"]', research: 'Author of Designing ML Systems.',
+    })
+    const msg = renderActorOp(ev(1, '2024-04-28T01:00:00Z', 'star', 'marin-community/levanter', 'chiphuyen'), a)
+    expect(msg.username).toBe("Chip Huyen ⭐'d levanter — 4/28 01:00Z")
+    expect(msg.text.split('\n')).toEqual([
+      '<https://github.com/chiphuyen|chiphuyen> · 23,923 followers · 30 repos · joined 2015'
+        + ' · 𝕏 <https://x.com/chipro|@chipro>'
+        + ' · :linkedin: <https://www.linkedin.com/search/results/people/?keywords=Chip%20Huyen|search>',
+      'San Francisco',
+      '_ML sys_',
+      'orgs: a, b',
+      ':globe_with_meridians: <https://huyenchip.com|huyenchip.com>',
+      ':mag: Author of Designing ML Systems.',
+      '<https://github.com/marin-community/levanter|levanter>',
+    ])
   })
 })
 

@@ -53,14 +53,15 @@ export async function findBsky(login: string, twitter: string | null, name: stri
   return null
 }
 
-/** Enrich up to CAP_PER_RUN posted-event actors lacking a fresh `actors` row (profile + public orgs + star_sum + bsky).
- * Deleted accounts get a tombstone row (nulls + fetched_at) so they aren't refetched every tick. */
+/** Enrich up to CAP_PER_RUN event actors lacking a fresh `actors` row (profile + public orgs + star_sum + bsky).
+ * Covers ALL events (not just Slack-posted ones): actor-voiced OPs need the row BEFORE
+ * posting, so enrichment must not wait on the post ledger. Deleted accounts get a
+ * tombstone row (nulls + fetched_at) so they aren't refetched every tick. */
 export async function enrichActors(env: Env): Promise<number> {
   const cutoff = new Date(Date.now() - REFRESH_DAYS * 86_400_000).toISOString()
   const { results } = await env.DB
     .prepare(
       `SELECT DISTINCT e.login FROM events e
-       JOIN slack_posts sp ON sp.event_id = e.id
        LEFT JOIN actors a ON a.login = e.login
        WHERE a.login IS NULL OR a.fetched_at < ? OR (a.star_sum IS NULL AND a.followers IS NOT NULL)
        ORDER BY e.id DESC LIMIT ${CAP_PER_RUN}`,
@@ -156,23 +157,28 @@ Profile: ${JSON.stringify(profile)}`
 }
 
 /**
- * One-time Claude research for notable actors with pending thread replies
- * (specs/actor-intel.md). Cached in `actors.research` so an actor starring five
- * repos is researched once, not five times. No-op without ANTHROPIC_API_KEY.
+ * One-time Claude research for notable actors with not-yet-posted matching events
+ * (specs/actor-intel.md) — their actor-voiced OP waits for the blurb, so research
+ * runs before `syncSlack` each tick. Cached in `actors.research` so an actor
+ * starring five repos is researched once, not five times. No-op without ANTHROPIC_API_KEY.
  */
 export async function researchActors(env: Env): Promise<number> {
   if (!env.ANTHROPIC_API_KEY) return 0
+  const matches = env.SLACK_MATCHES ?? []
+  if (!matches.length) return 0
   const minF = parseInt(env.RESEARCH_MIN_FOLLOWERS ?? '100', 10)
+  const where = matches.map(() => '(e.target = ? OR e.target LIKE ?)').join(' OR ')
+  const binds = matches.flatMap(m => [m, `${m}/%`])
   const { results } = await env.DB
     .prepare(
       `SELECT a.login, a.name, a.company, a.location, a.bio, a.blog, a.twitter, a.followers, a.orgs
        FROM actors a
        WHERE a.research_at IS NULL AND a.followers >= ?
-       AND EXISTS (SELECT 1 FROM slack_posts sp JOIN events e ON e.id = sp.event_id
-                   WHERE e.login = a.login AND sp.reply_ts IS NULL)
+       AND EXISTS (SELECT 1 FROM events e LEFT JOIN slack_posts sp ON sp.event_id = e.id
+                   WHERE e.login = a.login AND sp.event_id IS NULL AND (${where}))
        LIMIT ${RESEARCH_CAP}`,
     )
-    .bind(minF)
+    .bind(minF, ...binds)
     .all<ActorRow>()
 
   const now = new Date().toISOString()
