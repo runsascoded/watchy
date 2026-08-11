@@ -49,12 +49,16 @@ interface BskyProfile {
  * name search requiring an exact display-name match. Name search only runs for
  * multi-token real names — generic single tokens ("Anonymous", "Denis") exact-match
  * unrelated accounts (a GH user named "Anonymous" once matched a 455k-follower
- * anon-collective account, poisoning the reach score). */
+ * anon-collective account, poisoning the reach score). All matches require
+ * postsCount > 0: empty profiles are uncorroborable — `norvig.bsky.social`
+ * (no name/bio/posts, created 2025-12) may not even be Peter Norvig's — and
+ * linking a blank account is worthless even when it IS theirs. */
 export async function findBsky(login: string, twitter: string | null, name: string | null): Promise<BskyProfile | null> {
   const get = (path: string) => fetch(`https://public.api.bsky.app/xrpc/${path}`).then(r => (r.ok ? r.json<any>() : null)).catch(() => null)
+  const active = (p: any) => p?.handle && (p.postsCount ?? 0) > 0
   for (const guess of [twitter, login].filter(Boolean)) {
     const p = await get(`app.bsky.actor.getProfile?actor=${encodeURIComponent(`${guess!.toLowerCase()}.bsky.social`)}`)
-    if (p?.handle) return { handle: p.handle, followersCount: p.followersCount ?? 0 }
+    if (active(p)) return { handle: p.handle, followersCount: p.followersCount ?? 0 }
   }
   const clean = name?.trim()
   if (clean?.includes(' ')) {
@@ -62,7 +66,7 @@ export async function findBsky(login: string, twitter: string | null, name: stri
     const hit = res?.actors?.find((a: any) => a.displayName?.trim().toLowerCase() === clean.toLowerCase())
     if (hit) {
       const p = await get(`app.bsky.actor.getProfile?actor=${encodeURIComponent(hit.handle)}`)
-      if (p?.handle) return { handle: p.handle, followersCount: p.followersCount ?? 0 }
+      if (active(p)) return { handle: p.handle, followersCount: p.followersCount ?? 0 }
     }
   }
   return null
