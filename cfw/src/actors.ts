@@ -46,16 +46,20 @@ interface BskyProfile {
 }
 
 /** Conservative Bluesky match: handle guesses (twitter handle, GH login), then a
- * name search requiring an exact display-name match — ambiguity returns null. */
+ * name search requiring an exact display-name match. Name search only runs for
+ * multi-token real names — generic single tokens ("Anonymous", "Denis") exact-match
+ * unrelated accounts (a GH user named "Anonymous" once matched a 455k-follower
+ * anon-collective account, poisoning the reach score). */
 export async function findBsky(login: string, twitter: string | null, name: string | null): Promise<BskyProfile | null> {
   const get = (path: string) => fetch(`https://public.api.bsky.app/xrpc/${path}`).then(r => (r.ok ? r.json<any>() : null)).catch(() => null)
   for (const guess of [twitter, login].filter(Boolean)) {
     const p = await get(`app.bsky.actor.getProfile?actor=${encodeURIComponent(`${guess!.toLowerCase()}.bsky.social`)}`)
     if (p?.handle) return { handle: p.handle, followersCount: p.followersCount ?? 0 }
   }
-  if (name) {
-    const res = await get(`app.bsky.actor.searchActors?q=${encodeURIComponent(name)}&limit=3`)
-    const hit = res?.actors?.find((a: any) => a.displayName?.trim().toLowerCase() === name.trim().toLowerCase())
+  const clean = name?.trim()
+  if (clean?.includes(' ')) {
+    const res = await get(`app.bsky.actor.searchActors?q=${encodeURIComponent(clean)}&limit=3`)
+    const hit = res?.actors?.find((a: any) => a.displayName?.trim().toLowerCase() === clean.toLowerCase())
     if (hit) {
       const p = await get(`app.bsky.actor.getProfile?actor=${encodeURIComponent(hit.handle)}`)
       if (p?.handle) return { handle: p.handle, followersCount: p.followersCount ?? 0 }

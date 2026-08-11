@@ -133,6 +133,9 @@ Staging demo approved → #github-engagement transformed:
 - **Transform** (`tmp/prod-weekly-transform.py` → `build-prod-op.mts` → `prod-weekly-finish.py`): captured the 18 flat msg ts, posted the prod OP (`1786475715.836179`) + 17 re-rendered replies, repointed `slack_posts.ts` to the reply ts, built + applied the OP scoreboard via the worker's own builder, deleted the 18 flat msgs, verified zero stragglers.
 - Staging poller retired (`#github-engagement-staging` can be archived whenever).
 - Open: move the Monday-14:00-UTC summary cron to Tue AM as the higher-signal channel-level OP (discussed, not yet requested).
+- **`findBsky` name-search gated on multi-token names**: a GH user named "Anonymous" exact-matched `youranoncentral.bsky.social` (455k followers), poisoning reach — it topped the one-off showcase ranking. 22 single-token name-search matches cleared from `actors` (handle-guess matches untouched); same ≥2-token gate as the LI search link.
+- **/actors**: Σ⭐ values with `top_repos` get a TT listing the top repos (chips/`<details>` considered — TT matches the interest-breakdown pattern without widening rows); "sort" label TT explains interest vs recent-action (the latter = exact rev-chron, conceptually the hl→0 limit but a plain sort since the score underflows there).
+- **One-off showcase msg** (`tmp/top-actors-msg.py`): top-10 external actors by interest (local port of `scoreActor`, hl=60) posted channel-level to #github-engagement for cross-linking from #eng/#comms/#recruiting.
 
 ## Status — ✅ shipped 2026-08-10 (research pending key)
 

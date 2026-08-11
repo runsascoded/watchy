@@ -32,6 +32,7 @@ interface Actor {
   gh_created_at: string | null
   orgs: string | null
   star_sum: number | null
+  top_repos: string | null // JSON [{n: full_name, s: stars}], top 3 by stars
   bsky_handle: string | null
   bsky_followers: number | null
   x_followers: number | null
@@ -195,13 +196,15 @@ export default function Actors() {
       </p>
       <div className="filters">
         <input placeholder="filter (login, name, company, org, bio…)" value={q} onChange={e => setQ(e.target.value)} />
-        <label className="prm">
-          sort
-          <select value={byRecent ? 'recent' : 'score'} onChange={e => setSort(e.target.value === 'recent' ? 'recent' : '')}>
-            <option value="score">interest</option>
-            <option value="recent">recent action</option>
-          </select>
-        </label>
+        <Tooltip tip="interest: the fame × ratio × recency score (see column TT). recent action: exact reverse-chronological by newest eligible action — conceptually the hl→0 limit of interest (recency dominates completely), but implemented as a plain sort because the score itself underflows at tiny hl; fame and ratio are ignored entirely.">
+          <label className="prm">
+            <span className="hint">sort</span>
+            <select value={byRecent ? 'recent' : 'score'} onChange={e => setSort(e.target.value === 'recent' ? 'recent' : '')}>
+              <option value="score">interest</option>
+              <option value="recent">recent action</option>
+            </select>
+          </label>
+        </Tooltip>
         <Tooltip tip="recency half-life (days): smaller → recent actions dominate the score (rev-chron in the limit); larger → fame dominates">
           <label className="prm">
             hl
@@ -252,7 +255,17 @@ export default function Actors() {
                     </Tooltip>
                   </td>
                   <td className="num"><b>{fmt(a.followers)}</b><span className="dim"> / {a.following != null ? fmt(a.following) : '?'}</span></td>
-                  <td className="num">{fmt(a.star_sum)}</td>
+                  <td className="num">
+                    {(() => {
+                      const tops: { n: string; s: number }[] = a.top_repos ? JSON.parse(a.top_repos) : []
+                      if (!tops.length) return fmt(a.star_sum)
+                      return (
+                        <Tooltip tip={<div>{tops.map(t => <div key={t.n}>{t.n.split('/')[1] ?? t.n} · {fmt(t.s)} ⭐</div>)}</div>}>
+                          <span className="hint">{fmt(a.star_sum)}</span>
+                        </Tooltip>
+                      )
+                    })()}
+                  </td>
                   <td className="acts">
                     {a.events.slice(0, MAX_ACTS).map((e, i) => (
                       <div className={`act${e.active ? '' : ' gone'}`} key={i}>
