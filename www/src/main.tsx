@@ -1,20 +1,28 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createBrowserRouter, Link, NavLink, Outlet, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, Link, NavLink, Outlet, RouterProvider, useLocation } from 'react-router-dom'
 import Feed from './pages/Feed'
 import Health from './pages/Health'
 import Icons from './pages/Icons'
 import Graphs from './pages/Graphs'
 import Actors from './pages/Actors'
 import Access from './pages/Access'
+import Og from './pages/Og'
 import { WhoamiChip } from './auth'
 // Internal-only routes (AR etc.) are compiled in only for the internal
 // deployment (gh.oa.dev); the public bundle omits them entirely.
 import { INTERNAL } from './scope'
 import './index.scss'
 
-if (INTERNAL) document.title = 'watchy · OA'
+const TITLE_BASE = INTERNAL ? 'watchy · OA' : 'watchy'
+const PAGE_TITLES: Record<string, string> = {
+  '/health': 'Health',
+  '/graphs': 'Graphs',
+  '/icons': 'Icons',
+  '/actors': 'Actors',
+  '/access': 'Access',
+}
 
 // Off-site links open in new tabs — one delegated capture listener (runs before
 // the default navigation) instead of target= on every anchor; also covers
@@ -31,6 +39,11 @@ document.addEventListener('click', e => {
 const queryClient = new QueryClient()
 
 function Layout() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    const page = PAGE_TITLES[pathname]
+    document.title = page ? `${TITLE_BASE} · ${page}` : TITLE_BASE
+  }, [pathname])
   return (
     <div className="layout">
       <header>
@@ -39,7 +52,6 @@ function Layout() {
           <NavLink to="/" end>Feed</NavLink>
           <NavLink to="/health">Health</NavLink>
           <NavLink to="/graphs">Graphs</NavLink>
-          <NavLink to="/icons">Icons</NavLink>
           {INTERNAL && <NavLink to="/actors">Actors</NavLink>}
           <a href="https://github.com/runsascoded/watchy">GitHub</a>
         </nav>
@@ -51,6 +63,8 @@ function Layout() {
 }
 
 const router = createBrowserRouter([
+  // Chrome-less 1200×630 render of the stars chart — screenshotted to public/og.jpg
+  { path: '/og', element: <Og /> },
   {
     element: <Layout />,
     children: [

@@ -7,6 +7,15 @@
   --card: light-dark(#f7f7f8, #202124);
   --link: light-dark(#0b62c4, #6fb2ff);
   --error: light-dark(#b3261e, #ff8a80);
+  // dataviz reference palette, per-mode steps (validated for both surfaces);
+  // shared by .graphs and .og-page
+  --s1: light-dark(#2a78d6, #3987e5);
+  --s2: light-dark(#eb6834, #d95926);
+  --s3: light-dark(#1baf7a, #199e70);
+  --s4: light-dark(#eda100, #c98500);
+  --s5: light-dark(#e87ba4, #d55181);
+  --s6: #008300;
+  --s7: light-dark(#4a3aa7, #9085e9);
 }
 
 * { box-sizing: border-box; }
@@ -185,15 +194,6 @@ a { color: var(--link); text-decoration: none;
 }
 
 .graphs {
-  // dataviz reference palette, per-mode steps (validated for both surfaces)
-  --s1: light-dark(#2a78d6, #3987e5);
-  --s2: light-dark(#eb6834, #d95926);
-  --s3: light-dark(#1baf7a, #199e70);
-  --s4: light-dark(#eda100, #c98500);
-  --s5: light-dark(#e87ba4, #d55181);
-  --s6: #008300;
-  --s7: light-dark(#4a3aa7, #9085e9);
-
   .chart { margin-top: 1.2rem;
     h2 { font-size: .95rem; margin: 0 0 .2rem; }
   }
@@ -370,4 +370,36 @@ a { color: var(--link); text-decoration: none;
     tr.failed { background: color-mix(in srgb, var(--error) 8%, transparent); }
     td.error { max-width: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   }
+}
+
+// 1200×630 og:image render — always dark (color-scheme flips every light-dark()
+// inside), fixed-size regardless of the capturing browser's viewport/theme
+.og-page {
+  color-scheme: dark;
+  width: 1200px;
+  height: 630px;
+  padding: 3rem 3.5rem 2.5rem;
+  background: var(--bg);
+  color: var(--fg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  header { display: flex; align-items: baseline; gap: 1.4rem; margin-bottom: 1rem;
+    h1 { font-size: 3rem; margin: 0; }
+    p { margin: 0; font-size: 1.3rem; }
+  }
+  .dim { color: var(--dim); }
+  .legend { display: flex; gap: 1.4rem; margin-bottom: .8rem; font-size: 1.25rem; align-items: center;
+    .li { display: inline-flex; align-items: center; gap: .5rem; }
+  }
+  .swatch { width: 16px; height: 16px; border-radius: 4px; display: inline-block; flex: none; }
+  .favicon { width: 22px; height: 22px; border-radius: 5px; }
+  .chart-wrap { flex: 1; min-height: 0;
+    svg { width: 100%; height: 100%; display: block; }
+  }
+  .grid { stroke: var(--border); stroke-width: 1; }
+  .tick { fill: var(--dim); font-size: 10px; }
+  .xhair { display: none; }
+  .hb { display: none; }
 }

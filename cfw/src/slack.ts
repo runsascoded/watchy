@@ -3,7 +3,8 @@ import { ensureWeeklyThread, updateWeeklyOp, weekStartOf } from './weekly'
 
 // Mirrors src/watchy/slack.py (render_event / event metadata) — keep in sync.
 // Shortcodes, not literal emoji: Slack normalizes literals in stored text.
-// The event kind is carried by the per-message avatar (icon_url), not a leading emoji;
+// The event kind is carried by the ⭐/💔/🔔/🔕 verb in the sender line (icon_url is
+// the actor's GH avatar), not a leading emoji in the body;
 // `unit` is the running-total suffix's emoji (repo star count vs org follower count).
 const KINDS: Record<string, { verb: string; unit: string }> = {
   star: { verb: 'starred', unit: ':star:' },

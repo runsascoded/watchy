@@ -164,7 +164,7 @@ def octomosaic(out_dir: Path, cols: int, mega_every: int, coverage: int, glyph_s
     return png
 
 
-KIND_EMOJI = {"star": "⭐", "unstar": "💔", "follow": "📣", "unfollow": "🔇"}
+KIND_EMOJI = {"star": "⭐", "unstar": "💔", "follow": "🔔", "unfollow": "🔕"}
 AVATAR_ORGS = ["Open-Athena", "marin-community"]
 
 
@@ -178,8 +178,8 @@ def solid_mark(out_dir: Path) -> "Image.Image":
     return out
 
 
-# Kinds whose badge glyph is h-flipped (📣 opens left; flip so it matches 🔇's rightward face)
-FLIP_KINDS = {"follow"}
+# Kinds whose badge glyph is h-flipped (none currently; 📣 needed it when it was the follow badge)
+FLIP_KINDS: set[str] = set()
 
 
 def add_badge(base: "Image.Image", ch: str, flip: bool = False) -> "Image.Image":
@@ -233,23 +233,46 @@ def fit_upleft(content: "Image.Image", bg: tuple, margin: float = 0.05, extent: 
     return out
 
 
-def icon_base(cache: Path, org: str) -> "Image.Image":
-    """Badge-ready base for an org: local `img/logos/<slug>.svg` override (on GH-dark) if present,
-    else the GH org avatar — either way trimmed and anchored up-left of the badge."""
-    from PIL import Image
-
-    svg = Path("img/logos") / f"{org.lower()}.svg"
-    if svg.exists():
-        png = cache / f"logo-{org.lower()}.png"
-        subprocess.run(["rsvg-convert", "-w", str(S), "--keep-aspect-ratio", "-o", str(png), str(svg)], check=True)
-        return fit_upleft(*trim_content(Image.open(png).convert("RGBA")))
-    return fit_upleft(*trim_content(org_avatar(cache, org)))
-
-
 ORG_ICON_BG = "#B2AA9D"  # OA brand tan (openathena.ai mosaic/site bg)
 # The logo's natural olive/brown fills sit too close to the tan at 15px feed
 # size — darken each ~55% so the glyph actually reads (favicon does the same)
 ORG_ICON_DARKEN = {"#696751": "#34332A", "#9C683C": "#4E341E"}
+
+
+def darkened_glyph(svg: Path, cache: Path, width: int) -> "Image.Image":
+    """Render `img/logos/<slug>.svg` with its fills darkened per ORG_ICON_DARKEN."""
+    from PIL import Image
+
+    body = svg.read_text()
+    for light, dark in ORG_ICON_DARKEN.items():
+        body = body.replace(f'fill="{light}"', f'fill="{dark}"')
+    dark_svg = cache / f"orgicon-{svg.stem}.svg"
+    dark_svg.write_text(body)
+    png = cache / f"orgicon-{svg.stem}.png"
+    subprocess.run(["rsvg-convert", "-w", str(width), "--keep-aspect-ratio", "-o", str(png), str(dark_svg)], check=True)
+    return Image.open(png).convert("RGBA")
+
+
+def brand_tile(svg: Path, cache: Path, side: int, glyph_frac: float = 0.8125, round_frac: float = 0.0) -> "Image.Image":
+    """Darkened glyph centered on an OA-tan square — the favicon/feed treatment."""
+    from PIL import Image
+
+    glyph = darkened_glyph(svg, cache, max(side, 256))
+    box = int(side * glyph_frac)
+    glyph.thumbnail((box, box), Image.LANCZOS)
+    out = Image.new("RGBA", (side, side), ORG_ICON_BG)
+    out.alpha_composite(glyph, ((side - glyph.width) // 2, (side - glyph.height) // 2))
+    return round_corners(out, round_frac) if round_frac else out
+
+
+def icon_base(cache: Path, org: str) -> "Image.Image":
+    """Badge-ready base for an org: local `img/logos/<slug>.svg` as a rounded tan
+    coin if present (the raw glyph is illegible on GH-dark), else the GH org
+    avatar — either way trimmed and anchored up-left of the badge."""
+    svg = Path("img/logos") / f"{org.lower()}.svg"
+    if svg.exists():
+        return fit_upleft(*trim_content(brand_tile(svg, cache, S, round_frac=0.18)))
+    return fit_upleft(*trim_content(org_avatar(cache, org)))
 
 
 def org_icons(out_dir: Path) -> Path:
@@ -257,24 +280,11 @@ def org_icons(out_dir: Path) -> Path:
     centered on OA brand tan — the GH org avatar's white bg is jarring in the
     dark-mode feed, and the tan matches the favicon/site treatment. Served at
     /org/<slug>.png."""
-    from PIL import Image
-
     cache = Path("tmp")
     cache.mkdir(exist_ok=True)
     out_dir.mkdir(parents=True, exist_ok=True)
     for svg in sorted(Path("img/logos").glob("*.svg")):
-        body = svg.read_text()
-        for light, dark in ORG_ICON_DARKEN.items():
-            body = body.replace(f'fill="{light}"', f'fill="{dark}"')
-        dark_svg = cache / f"orgicon-{svg.stem}.svg"
-        dark_svg.write_text(body)
-        png = cache / f"orgicon-{svg.stem}.png"
-        subprocess.run(["rsvg-convert", "-w", "256", "--keep-aspect-ratio", "-o", str(png), str(dark_svg)], check=True)
-        glyph = Image.open(png).convert("RGBA")
-        glyph.thumbnail((78, 78), Image.LANCZOS)
-        out = Image.new("RGBA", (96, 96), ORG_ICON_BG)
-        out.alpha_composite(glyph, ((96 - glyph.width) // 2, (96 - glyph.height) // 2))
-        out.convert("RGB").save(out_dir / f"{svg.stem}.png")
+        brand_tile(svg, cache, 96).convert("RGB").save(out_dir / f"{svg.stem}.png")
     return out_dir
 
 
