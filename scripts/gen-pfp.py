@@ -246,6 +246,38 @@ def icon_base(cache: Path, org: str) -> "Image.Image":
     return fit_upleft(*trim_content(org_avatar(cache, org)))
 
 
+ORG_ICON_BG = "#B2AA9D"  # OA brand tan (openathena.ai mosaic/site bg)
+# The logo's natural olive/brown fills sit too close to the tan at 15px feed
+# size — darken each ~55% so the glyph actually reads (favicon does the same)
+ORG_ICON_DARKEN = {"#696751": "#34332A", "#9C683C": "#4E341E"}
+
+
+def org_icons(out_dir: Path) -> Path:
+    """FE feed org icons (96px): each `img/logos/<slug>.svg` (fills darkened)
+    centered on OA brand tan — the GH org avatar's white bg is jarring in the
+    dark-mode feed, and the tan matches the favicon/site treatment. Served at
+    /org/<slug>.png."""
+    from PIL import Image
+
+    cache = Path("tmp")
+    cache.mkdir(exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for svg in sorted(Path("img/logos").glob("*.svg")):
+        body = svg.read_text()
+        for light, dark in ORG_ICON_DARKEN.items():
+            body = body.replace(f'fill="{light}"', f'fill="{dark}"')
+        dark_svg = cache / f"orgicon-{svg.stem}.svg"
+        dark_svg.write_text(body)
+        png = cache / f"orgicon-{svg.stem}.png"
+        subprocess.run(["rsvg-convert", "-w", "256", "--keep-aspect-ratio", "-o", str(png), str(dark_svg)], check=True)
+        glyph = Image.open(png).convert("RGBA")
+        glyph.thumbnail((78, 78), Image.LANCZOS)
+        out = Image.new("RGBA", (96, 96), ORG_ICON_BG)
+        out.alpha_composite(glyph, ((96 - glyph.width) // 2, (96 - glyph.height) // 2))
+        out.convert("RGB").save(out_dir / f"{svg.stem}.png")
+    return out_dir
+
+
 def avatars(out_dir: Path, cols: int, mega_every: int, coverage: int, glyph_scale: float) -> Path:
     """Per-event-kind avatar candidates for `chat.postMessage` icon_url overrides.
 
@@ -307,6 +339,7 @@ VARIANTS = {
     "octomosaic": lambda out_dir, **kw: octomosaic(out_dir, **kw),
     "avatars": lambda out_dir, **kw: avatars(out_dir, **kw),
     "icons": lambda out_dir, **kw: icons(out_dir),
+    "org-icons": lambda out_dir, **kw: org_icons(out_dir),
 }
 
 
