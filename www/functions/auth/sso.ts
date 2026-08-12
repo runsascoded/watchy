@@ -1,4 +1,4 @@
-// The ONLY Access-gated path on watchy.oa.dev (see specs/auth-gate.md): CF
+// The ONLY Access-gated path on gh.oa.dev (alias: watchy.oa.dev) (see specs/auth-gate.md): CF
 // Access authenticates at the edge and attaches Cf-Access-Jwt-Assertion (the
 // friendly ...-Authenticated-User-Email header is NOT forwarded through Pages
 // o2o proxying, so we verify the JWT ourselves — which is also sturdier: the

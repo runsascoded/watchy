@@ -1,6 +1,6 @@
 import { INTERNAL } from './scope'
 
-// Internal build (watchy.oa.dev) is same-origin: /api/* proxies to the worker
+// Internal build (gh.oa.dev) is same-origin: /api/* proxies to the worker
 // via a Pages Function so the auth cookie flows (see specs/auth-gate.md); the
 // vite dev server proxies the same paths. Public builds hit the prod worker
 // cross-origin (ctbk pattern) except on workers.dev itself. VITE_API_BASE overrides.

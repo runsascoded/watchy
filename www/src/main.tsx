@@ -10,7 +10,7 @@ import Actors from './pages/Actors'
 import Access from './pages/Access'
 import { WhoamiChip } from './auth'
 // Internal-only routes (AR etc.) are compiled in only for the internal
-// deployment (watchy.oa.dev); the public bundle omits them entirely.
+// deployment (gh.oa.dev); the public bundle omits them entirely.
 import { INTERNAL } from './scope'
 import './index.scss'
 

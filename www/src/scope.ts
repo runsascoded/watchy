@@ -1,5 +1,5 @@
 // Both site variants share one worker/API; scoping is a build-time concern:
-// the internal bundle (watchy.oa.dev, VITE_INTERNAL=1) shows only OA/marin
+// the internal bundle (gh.oa.dev, VITE_INTERNAL=1) shows only OA/marin
 // targets, the public bundle (watchy.rbw.sh) only personal ones.
 export const INTERNAL = import.meta.env.VITE_INTERNAL === '1'
 

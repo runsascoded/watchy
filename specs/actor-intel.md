@@ -145,6 +145,10 @@ Staging demo approved → #github-engagement transformed:
 - **Showcase v3** (`tmp/showcase-v3.py`): new ranking order; literate bullets — actions read with the subject: `login (Name) ⭐ repo1, repo2 M/D — N followers · affil · Σ⭐ ↳` (verb inside the first link of each same-kind run; one trailing date when shared; name parenthetical skipped for junk names like "Anonymous"); curated LI links; ↳ permalinks canonical via `chat.getPermalink` (thread-form for the two actors whose msgs are weekly-thread replies).
 - **↳ glyph scale**: U+21B3 renders large because Slack's webfont covers it; ⬏/⬎/↰/↲ (U+2B0E–0F, U+21B0/B2) fall back to a system symbol font drawn small — no per-char styling in Slack, so down-right ↳ is the only good-looking option in that family. Emoji arrows (⤴️/⤵️) render at emoji scale and, as literal unicode, should work inside rich_text anchors like ⭐ does (untested).
 
+### gh.oa.dev cutover (2026-08-11)
+
+Internal dashboard moved to **gh.oa.dev** (watchy.oa.dev stays attached as an alias — all previously-posted Slack links keep resolving). Done via `CLOUDFLARE_ADMIN_TOKEN` (watchy `.envrc`; Pages:Edit + Access:Apps:Edit + Zone DNS:Edit, scoped to the "Open Athena" account + oa.dev zone): Pages domain attach on `watchy-internal`, proxied CNAME `gh → watchy-internal.pages.dev`, and `gh.oa.dev/auth/sso` added to the watchy Access app's destinations (same app → same AUD → no env-var changes; allow-policy verified intact). Gotcha: OA has TWO CF accounts both prefixed `74981a…` — `…43be` "Open Athena" (oa.dev zone + watchy-internal Pages + Access org) vs `…734b` (gcs-usage etc.); Access-apps 403s earlier were from querying the wrong one. `DASHBOARD_URL` → gh.oa.dev (worker redeployed), showcase + details msgs re-pointed; per-host session cookies mean one re-SSO per user on the new host.
+
 ## Status — ✅ shipped 2026-08-10 (research pending key)
 
 - [x] Feed org icons (grouped headers + inline lines + actions column)

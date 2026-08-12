@@ -98,7 +98,7 @@ export default function Access() {
             {minted.email && (
               <a
                 className="btn"
-                href={`mailto:${minted.email}?subject=${encodeURIComponent('watchy access link')}&body=${encodeURIComponent(`Here's your access link for watchy.oa.dev:\n\n${linkFor(minted.token)}\n\nOpening it signs your browser in automatically.`)}`}
+                href={`mailto:${minted.email}?subject=${encodeURIComponent('watchy access link')}&body=${encodeURIComponent(`Here's your access link for gh.oa.dev:\n\n${linkFor(minted.token)}\n\nOpening it signs your browser in automatically.`)}`}
               >
                 email it
               </a>
