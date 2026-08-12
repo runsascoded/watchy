@@ -16,6 +16,18 @@ import './index.scss'
 
 if (INTERNAL) document.title = 'watchy · OA'
 
+// Off-site links open in new tabs — one delegated capture listener (runs before
+// the default navigation) instead of target= on every anchor; also covers
+// FloatingPortal tooltips, which render outside the app root. Same-host anchors
+// (router Links, hash/relative) are untouched; mailto: has an empty .host.
+document.addEventListener('click', e => {
+  const a = (e.target as Element | null)?.closest?.('a')
+  if (a?.host && a.host !== location.host) {
+    a.target = '_blank'
+    a.rel = 'noopener'
+  }
+}, true)
+
 const queryClient = new QueryClient()
 
 function Layout() {
