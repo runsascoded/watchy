@@ -90,13 +90,34 @@ async function apiEvents(url: URL, env: Env): Promise<Response> {
     wheres.push('kind = ?'); binds.push(kind)
   }
   if (login) { wheres.push('login LIKE ?'); binds.push(`%${login}%`) }
+  // Scope filter (site flavors are owner-disjoint): ?owners=a,b keeps events whose
+  // target is an owner or one of its repos; ?exclude=1 inverts (public flavor)
+  const owners = url.searchParams.get('owners')?.split(',').filter(Boolean) ?? []
+  if (owners.length) {
+    const clause = owners.map(() => '(target = ? OR target LIKE ?)').join(' OR ')
+    wheres.push(`${url.searchParams.get('exclude') === '1' ? 'NOT ' : ''}(${clause})`)
+    for (const o of owners) binds.push(o, `${o}/%`)
+  }
+  // Keyset cursor for infinite scroll — matches the (ts, id) sort, so pages stay
+  // stable as new events arrive (unlike OFFSET)
+  const beforeTs = url.searchParams.get('before_ts')
+  const beforeId = url.searchParams.get('before_id')
+  if (beforeTs && beforeId) { wheres.push('(ts, id) < (?, ?)'); binds.push(beforeTs, parseInt(beforeId)) }
   const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '100'), 5000)
   const offset = parseInt(url.searchParams.get('offset') ?? '0')
   const where = wheres.length ? `WHERE ${wheres.join(' AND ')}` : ''
   // Event-time order, not insertion order: bootstrap star events carry starred_at
-  // timestamps spanning years, so id-order would clump them at the end
+  // timestamps spanning years, so id-order would clump them at the end.
+  // prior_ts: when the star/follow being undone was itself observed, its ts —
+  // lets the UI say how long the star/follow lasted.
   const { results } = await env.DB
-    .prepare(`SELECT id, ts, kind, target, uid, login, source, sha FROM events ${where} ORDER BY ts DESC, id DESC LIMIT ? OFFSET ?`)
+    .prepare(`SELECT id, ts, kind, target, uid, login, source, sha,
+      CASE WHEN kind IN ('unstar', 'unfollow') THEN
+        (SELECT MAX(p.ts) FROM events p
+          WHERE p.login = e.login AND p.target = e.target AND p.ts < e.ts
+            AND p.kind = CASE e.kind WHEN 'unstar' THEN 'star' ELSE 'follow' END)
+      END AS prior_ts
+      FROM events e ${where} ORDER BY ts DESC, id DESC LIMIT ? OFFSET ?`)
     .bind(...binds, limit, offset)
     .all()
   return json({ events: results })

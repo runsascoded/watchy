@@ -23,6 +23,8 @@ export interface Event {
   login: string
   source: 'live' | 'git'
   sha: string | null
+  // unstar/unfollow only: ts of the star/follow being undone, when observed
+  prior_ts?: string | null
 }
 
 export interface RunEvent {

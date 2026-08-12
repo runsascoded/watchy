@@ -1,7 +1,8 @@
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { boolParam, stringParam, useUrlState } from 'use-prms'
 import { get, type Event, type TargetCount } from '../api'
-import { inScope } from '../scope'
+import { INTERNAL, OA_OWNERS, inScope } from '../scope'
 import { Tooltip } from '../components/Tooltip'
 import { TargetLink } from '../target'
 
@@ -26,6 +27,17 @@ function time(ts: string): string {
   return ts.slice(11, 16) + 'Z'
 }
 
+/** Rough human age between two ISO timestamps ("16d", "8mo", "1.5y"). */
+function age(from: string, to: string): string {
+  const d = (Date.parse(to) - Date.parse(from)) / 86_400_000
+  if (d < 1) return '<1d'
+  if (d < 60) return `${Math.round(d)}d`
+  if (d < 730) return `${Math.round(d / 30.44)}mo`
+  return `${(d / 365.25).toFixed(1)}y`
+}
+
+const PAGE = 100
+
 export default function Feed() {
   // Filters + view mode live in the URL (use-prms): ?k=star&t=…&l=…&g
   const [kind, setKind] = useUrlState('k', stringParam(''))
@@ -33,22 +45,43 @@ export default function Feed() {
   const [login, setLogin] = useUrlState('l', stringParam(''))
   const [byRepo, setByRepo] = useUrlState('g', boolParam)
 
-  // Over-fetch since the scope filter drops the other variant's events client-side
-  const params = new URLSearchParams({ limit: '500' })
-  if (kind) params.set('kind', kind)
-  if (target) params.set('target', target)
-  if (login) params.set('login', login)
-
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ['events', kind, target, login],
-    queryFn: () => get<{ events: Event[] }>(`/api/events?${params}`),
+    queryFn: ({ pageParam }) => {
+      // Scope filter is server-side (owners/exclude), so pages arrive full
+      const params = new URLSearchParams({ limit: String(PAGE), owners: [...OA_OWNERS].join(',') })
+      if (!INTERNAL) params.set('exclude', '1')
+      if (kind) params.set('kind', kind)
+      if (target) params.set('target', target)
+      if (login) params.set('login', login)
+      if (pageParam) {
+        params.set('before_ts', pageParam.ts)
+        params.set('before_id', String(pageParam.id))
+      }
+      return get<{ events: Event[] }>(`/api/events?${params}`)
+    },
+    initialPageParam: null as null | { ts: string; id: number },
+    getNextPageParam: last => {
+      const tail = last.events[last.events.length - 1]
+      return last.events.length === PAGE ? { ts: tail.ts, id: tail.id } : undefined
+    },
   })
   const { data: targets } = useQuery({
     queryKey: ['targets'],
     queryFn: () => get<{ stars: TargetCount[]; follows: TargetCount[] }>('/api/targets'),
   })
 
-  const events = (data?.events ?? []).filter(e => inScope(e.target))
+  // Load-more sentinel: fetch the next page as it nears the viewport
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(es => { if (es.some(x => x.isIntersecting)) fetchNextPage() }, { rootMargin: '600px' })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [fetchNextPage])
+
+  const events = data?.pages.flatMap(p => p.events) ?? []
   const byDay = new Map<string, Event[]>()
   for (const e of events) {
     const d = day(e.ts)
@@ -66,6 +99,11 @@ export default function Feed() {
       <span className="emoji">{KIND_EMOJI[e.kind]}</span>
       <a href={`https://github.com/${e.login}`} className="login">{e.login}</a>
       {showTarget && <>{' '}{KIND_VERB[e.kind]}{' '}<TargetLink target={e.target} /></>}
+      {e.prior_ts && (
+        <Tooltip tip={`${e.kind === 'unstar' ? 'starred' : 'followed'} ${e.prior_ts.slice(0, 10)}`}>
+          <span className="prior dim"> ({e.kind === 'unstar' ? '⭐' : '🔔'} {age(e.prior_ts, e.ts)} earlier)</span>
+        </Tooltip>
+      )}
       <Tooltip tip={e.ts}><span className="ts">{time(e.ts)}</span></Tooltip>
       {e.source === 'git' && <Tooltip tip={`backfilled from .watchy@${e.sha}`}><span className="source">git</span></Tooltip>}
     </li>
@@ -123,6 +161,9 @@ export default function Feed() {
         )
       })}
       {!isLoading && events.length === 0 && <p className="dim">no events match</p>}
+      <div ref={sentinelRef} />
+      {isFetchingNextPage && <p className="dim">loading more…</p>}
+      {!isLoading && !hasNextPage && events.length > 0 && <p className="dim">— end of history —</p>}
     </div>
   )
 }
