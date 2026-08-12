@@ -276,7 +276,7 @@ export default function Actors() {
                       const tops: { n: string; s: number }[] = a.top_repos ? JSON.parse(a.top_repos) : []
                       if (!tops.length) return fmt(a.star_sum)
                       return (
-                        <Tooltip tip={<div>{tops.map(t => <div key={t.n}>{t.n.split('/')[1] ?? t.n} · {fmt(t.s)} ⭐</div>)}</div>}>
+                        <Tooltip tip={<div>{tops.map(t => <div key={t.n}><a href={`https://github.com/${t.n}`}>{t.n.split('/')[1] ?? t.n}</a> · {fmt(t.s)} ⭐</div>)}</div>}>
                           <span className="hint">{fmt(a.star_sum)}</span>
                         </Tooltip>
                       )

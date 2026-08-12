@@ -4,6 +4,7 @@ import {
   flip,
   FloatingPortal,
   offset,
+  safePolygon,
   shift,
   useDismiss,
   useFloating,
@@ -24,7 +25,9 @@ export function Tooltip({ tip, children, className }: { tip: ReactNode; children
     whileElementsMounted: autoUpdate,
   })
   const { getReferenceProps, getFloatingProps } = useInteractions([
-    useHover(context, { move: false, delay: { open: 100, close: 50 } }),
+    // safePolygon keeps the TT open while the cursor travels into it — several
+    // TTs carry links (Σ⭐ top repos, actor cards) that must be clickable
+    useHover(context, { move: false, delay: { open: 100, close: 50 }, handleClose: safePolygon() }),
     useFocus(context),
     useDismiss(context),
     useRole(context, { role: 'tooltip' }),

@@ -302,18 +302,18 @@ a { color: var(--link); text-decoration: none;
   // Scroll INSIDE .tbl (not the page) so the sticky header actually floats —
   // sticky can't escape an overflow ancestor, and .tbl needs overflow-x anyway
   .tbl { overflow: auto; max-height: calc(100vh - 11rem); border: 1px solid var(--border); border-radius: 8px; }
-  table { border-collapse: collapse; font-size: .82rem; width: 100%; }
+  table { border-collapse: collapse; font-size: .9rem; width: 100%; }
   th { position: sticky; top: 0; z-index: 2; background: var(--card); color: var(--dim); font-weight: 600;
-    font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; text-align: left;
+    font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; text-align: left;
     padding: .45rem .55rem;
     // border-collapse makes sticky headers shed their border-bottom on scroll
     box-shadow: 0 1px 0 var(--border); }
   td { padding: .4rem .55rem; border-bottom: 1px solid var(--border); vertical-align: top; }
   tr:last-child td { border-bottom: none; }
   .who { white-space: nowrap;
-    .where { font-size: .74rem; max-width: 13rem; white-space: normal; }
+    .where { font-size: .8rem; max-width: 13rem; white-space: normal; }
   }
-  .prm { display: inline-flex; align-items: center; gap: .3rem; font-size: .85rem; color: var(--dim);
+  .prm { display: inline-flex; align-items: center; gap: .3rem; font-size: .9rem; color: var(--dim);
     input, select {
       font: inherit; color: var(--fg); background: var(--card);
       border: 1px solid var(--border); border-radius: 4px; padding: .15rem .3rem;
@@ -323,7 +323,7 @@ a { color: var(--link); text-decoration: none;
   .hint { cursor: help; border-bottom: 1px dotted var(--dim); }
   .score { font-weight: 600; }
   .acts { white-space: nowrap;
-    .ts { margin-left: .45em; font-size: .74rem; }
+    .ts { margin-left: .45em; font-size: .8rem; }
     .act.gone { opacity: .5;
       a, > span:first-child { text-decoration: line-through; }
     }
@@ -332,10 +332,10 @@ a { color: var(--link); text-decoration: none;
   .orgs { max-width: 11rem; }
   .bio { min-width: 16rem; color: var(--dim); }
   .links a { margin-right: .45rem; white-space: nowrap; }
-  .links .cnt { margin-left: .25em; font-size: .74rem; color: var(--dim); }
+  .links .cnt { margin-left: .25em; font-size: .8rem; color: var(--dim); }
   .bsky-logo { width: .8em; height: .72em; fill: #1185fe; vertical-align: -.02em; }
   .chip { display: inline-block; background: var(--card); border: 1px solid var(--border);
-    border-radius: 4px; padding: 0 .3rem; font-size: .7rem; margin: 0 .15rem .15rem 0; }
+    border-radius: 4px; padding: 0 .3rem; font-size: .77rem; margin: 0 .15rem .15rem 0; }
   .chip.oa { border-color: var(--fg); font-weight: 700; margin-right: .35rem; }
 }
 
