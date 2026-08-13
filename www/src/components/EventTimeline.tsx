@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { autoUpdate, flip, offset, shift, useFloating } from '@floating-ui/react'
 import { get, type Event } from '../api'
-import { inScope } from '../scope'
 
 const { max, min, floor } = Math
 
@@ -94,7 +93,7 @@ export default function EventTimeline({ now }: { now: string }) {
   })
 
   const events = useMemo(
-    () => (data?.events ?? []).filter(e => inScope(e.target)).sort((a, b) => a.ts.localeCompare(b.ts)),
+    () => (data?.events ?? []).slice().sort((a, b) => a.ts.localeCompare(b.ts)),
     [data],
   )
   const minTs = events.length ? Date.parse(events[0].ts) : nowMs - 7 * DAY

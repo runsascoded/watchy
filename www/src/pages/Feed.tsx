@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { boolParam, stringParam, useUrlState } from 'use-prms'
 import { get, type Event, type TargetCount } from '../api'
-import { INTERNAL, OA_OWNERS, inScope } from '../scope'
 import { Tooltip } from '../components/Tooltip'
 import { TargetLink } from '../target'
 
@@ -48,9 +47,7 @@ export default function Feed() {
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ['events', kind, target, login],
     queryFn: ({ pageParam }) => {
-      // Scope filter is server-side (owners/exclude), so pages arrive full
-      const params = new URLSearchParams({ limit: String(PAGE), owners: [...OA_OWNERS].join(',') })
-      if (!INTERNAL) params.set('exclude', '1')
+      const params = new URLSearchParams({ limit: String(PAGE) })
       if (kind) params.set('kind', kind)
       if (target) params.set('target', target)
       if (login) params.set('login', login)
@@ -92,7 +89,7 @@ export default function Feed() {
   const targetOptions = [
     ...(targets?.stars ?? []).map(t => t.target),
     ...(targets?.follows ?? []).map(t => t.target),
-  ].filter(inScope)
+  ]
 
   const line = (e: Event, showTarget: boolean) => (
     <li key={e.id}>

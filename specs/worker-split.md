@@ -38,11 +38,14 @@ Phase 2 — needs an upgraded OA token (`CLOUDFLARE_ADMIN_TOKEN` + Workers Scrip
 - [x] Import dump (23,088 rows); counts verified vs. live (2,436 ev / 2,399 st / 156 fo / 2,344 ac / 2,436 sp / 2 gr)
 - [x] Secrets on `env.oa`: `WATCHY_TOKEN` (fine-grained PAT, resource owner Open-Athena) + `WATCHY_TOKEN_MARIN_COMMUNITY` (second fine-grained PAT — one resource owner per token; `tokenFor()` in collect.ts resolves per owner), `SESSION_SECRET` (reused → sessions carry over). Slack/Anthropic deliberately deferred to phase 3 (no double-posting while the personal worker still posts).
 - [x] Deployed: `watchy.open-athena.workers.dev` — crons live, delta runs green, `/api/*` serving imported data
-- [ ] Fine-grained PATs 403 on stargazers with Metadata:Read alone ("Resource not accessible by personal access token"; classic/OAuth collaborator tokens still 200) → add **Administration: Read-only** to both tokens
-- [ ] Full sweep needs Workers Paid on the OA acct (free = 50 subrequests/invocation; paid = 10,000) — upgraded, awaiting runtime propagation
+- [x] Fine-grained PAT stargazer access: the restricted endpoint requires **Contents: Read and write** (the FG permission encoding "collaborator standing" — Metadata/Administration read are NOT sufficient; see [permissions mapping](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens)). Both tokens verified 200.
+- [x] Workers Paid on the OA acct (free = 50 subrequests/invocation → full sweep died; paid = 10,000). Full sweep green: 65 repos fetched, 1 skip (`Open-Athena/ec2`: 403 — TBD why; degrades gracefully).
 
-Phase 3 — cutover + trim:
-- [ ] `watchy-internal` Pages: set `WORKER_ORIGIN` → OA worker URL; verify gh.oa.dev (API + auth cookie flow relays through the proxy unchanged)
-- [ ] Top-level env: drop OA targets + all `SLACK_*`/`ADMIN_EMAILS`; delete Slack/session/Anthropic secrets from the personal worker; redeploy
-- [ ] Delete migrated OA rows from personal D1 (same predicates as the dump)
-- [ ] FE: remove `inScope` complement filtering (+ `owners`/`exclude` API params can stay for generality)
+Phase 3 — cutover + trim (done 2026-08-13):
+- [x] `watchy-internal` Pages: `WORKER_ORIGIN=https://watchy.open-athena.workers.dev` env var + redeploy; gh.oa.dev verified serving OA-worker data
+- [x] Top-level env trimmed to personal targets; `SLACK_BOT_TOKEN`/`SESSION_SECRET` deleted from the personal worker (keeps `WATCHY_TOKEN`, `PUSHOVER_*`, `MANUAL_CHECK_KEY`)
+- [x] Dupe guard before enabling OA Slack: 2 events double-collected post-import had been posted by the personal worker — synthetic `slack_posts` rows inserted with **OA's** event ids (ids for the same logical events differed across the two D1s, so ledger rows can't be copied verbatim); then `SLACK_BOT_TOKEN` set on `env.oa`
+- [x] OA rows purged from personal D1 (413 events / 180 stars / 189 follows remain — personal-only)
+- [x] FE: `inScope` complement filtering removed (each instance's API is authoritative); `owners`/`exclude` API params retained for generality; all four FE surfaces redeployed
+
+Post-cutover notes: weekly summary (Mon 14:00 UTC) now fires from the OA worker (`weekly_threads` imported). `Open-Athena/ec2` stargazers 403 even with Contents:write — investigate (private repo? fork?). GitHub App migration (org-owned auth + `star` webhooks + installable-by-anyone) is the planned successor to the classic/FG PAT dance — separate spec.

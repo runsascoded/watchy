@@ -1,7 +1,7 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { SeriesChart, type Point, type Series } from '../components/SeriesChart'
 import { get, type TargetCount } from '../api'
-import { INTERNAL, inScope, owner } from '../scope'
+import { INTERNAL, owner } from '../scope'
 
 const N = 5
 
@@ -12,7 +12,7 @@ export default function Og() {
     queryKey: ['targets'],
     queryFn: () => get<{ stars: TargetCount[]; follows: TargetCount[] }>('/api/targets'),
   })
-  const top = (data?.stars ?? []).filter(t => inScope(t.target)).slice(0, N)
+  const top = (data?.stars ?? []).slice(0, N)
   const results = useQueries({
     queries: top.map(t => ({
       queryKey: ['series', t.target],

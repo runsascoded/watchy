@@ -3,7 +3,7 @@ import { useQueries, useQuery } from '@tanstack/react-query'
 import { Tooltip } from '../components/Tooltip'
 import { SeriesChart, type Point, type Series } from '../components/SeriesChart'
 import { get, type TargetCount } from '../api'
-import { inScope, owner } from '../scope'
+import { owner } from '../scope'
 
 const N_SLOTS = 7
 
@@ -111,8 +111,8 @@ export default function Graphs() {
   if (error || !data) return <p className="error">{String(error)}</p>
   return (
     <div className="graphs">
-      <Section title="Repo stars" all={data.stars.filter(t => inScope(t.target))} />
-      <Section title="Followers" all={data.follows.filter(t => inScope(t.target))} />
+      <Section title="Repo stars" all={data.stars} />
+      <Section title="Followers" all={data.follows} />
       <p className="dim">
         Reconstructed from the event log (6-month backfill), anchored to current totals; hover for values.
       </p>

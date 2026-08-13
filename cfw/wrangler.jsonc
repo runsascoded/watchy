@@ -2,9 +2,6 @@
   // Two standalone instances of one codebase (specs/worker-split.md): the
   // top-level env is the personal (rbw) instance; `env.oa` is Open Athena's,
   // on its own CF account + D1. Instance config = the env's `vars` block.
-  // NOTE: until phase-3 cutover the top-level env still carries the combined
-  // config (OA targets + Slack) — trimming it before the OA worker is live
-  // would break gh.oa.dev + Slack posting.
   "name": "watchy",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-01",
@@ -30,57 +27,11 @@
   },
   "vars": {
     "TARGETS": {
-      "stars": ["runsascoded", "ryan-williams", "hudcostreets", "bikejc", "embankmentjc", "neighbor-ryan", "Open-Athena", "marin-community"],
-      "follows": ["runsascoded", "ryan-williams", "hudcostreets", "bikejc", "embankmentjc", "neighbor-ryan", "Open-Athena", "marin-community"]
+      "stars": ["runsascoded", "ryan-williams", "hudcostreets", "bikejc", "embankmentjc", "neighbor-ryan"],
+      "follows": ["runsascoded", "ryan-williams", "hudcostreets", "bikejc", "embankmentjc", "neighbor-ryan"]
     },
     // UTC hour of the daily full sweep (bypasses the count-delta gate)
-    "FULL_SWEEP_HOUR": "8",
-    // SSO emails allowed to CRUD access grants (specs/auth-gate.md); SESSION_SECRET is a secret
-    "ADMIN_EMAILS": ["ryan.williams@openathena.ai"],
-    // Linked from Slack event msgs / weekly summaries / thread replies (specs/actor-intel.md)
-    "DASHBOARD_URL": "https://gh.oa.dev",
-    // Actors at/above this follower count get a one-time Claude research blurb
-    // (requires ANTHROPIC_API_KEY secret; without it, replies are profile-bits-only)
-    "RESEARCH_MIN_FOLLOWERS": "100",
-    // Target prefixes whose events get posted to Slack (SLACK_BOT_TOKEN secret + these two must all be set)
-    "SLACK_CHANNEL_ID": "C0BKZUV1SKH",
-    // Base for constructing in-thread permalinks (weekly-OP Notable ↳ links)
-    "SLACK_WORKSPACE_URL": "https://openathena.slack.com",
-    "SLACK_MATCHES": ["Open-Athena", "marin-community"],
-    // Org → workspace-emoji name, prefixed before repo short-names in event msgs.
-    // Emoji must exist in the workspace or Slack renders the literal shortcode
-    // (both of these do, plus :marin: / :oa: aliases).
-    "SLACK_ORG_EMOJI": {
-      "Open-Athena": "open-athena",
-      "marin-community": "marin-community"
-    },
-    // GH login → OA Slack user id; known actors get an (<@U…>) mention after their GH link.
-    // Built by cross-referencing GH org members' profile names against workspace users
-    // (email-domain search); unmatched org members: ForOwlMankind, wmoss, LaureZanna, ahmeda14960.
-    "SLACK_USER_MAP": {
-      "alxmrs": "U08800J4DQR",
-      "ClassicLarry": "U0A91M5PG6Q",
-      "dlwh": "U09CB26C44Q",
-      "eric-czech": "U086ET565LP",
-      "forklady42": "U08SBKVRBS5",
-      "gonzalobenegas": "U098XCDS6NQ",
-      "hammer": "U07V3S3NQRH",
-      "Helw150": "U09UPJBGFFW",
-      "ihodes": "U09H5DG7490",
-      "jder": "U086XUETAJ0",
-      "mcwitt": "U0BH3S95CQ1",
-      "michaelabbott": "U07V13REVL5",
-      "muchanem": "U0BHEQBQBHD",
-      "penfever": "U0B7LUWF1R6",
-      "ravwojdyla": "U0A6E3V5NBW",
-      "rjpower": "U09B54B93E3",
-      "ryan-williams": "U0922LQRRM0",
-      "sophiebushwick": "U0ABUGLRLQ6",
-      "timodonnell": "U08GPNZAKHU",
-      "yaelelmatad": "U09VDTYDQKW",
-      "yonromai": "U0A66GZDNTF",
-      "znichols": "U0BHU5D4N5U"
-    }
+    "FULL_SWEEP_HOUR": "8"
   },
   "observability": {
     "enabled": true
