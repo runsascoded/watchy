@@ -10,9 +10,13 @@ import Actors from './pages/Actors'
 import Access from './pages/Access'
 import Og from './pages/Og'
 import { WhoamiChip } from './auth'
-// Internal-only routes (AR etc.) are compiled in only for the internal
-// deployment (gh.oa.dev); the public bundle omits them entirely.
+import { HotkeysProvider } from 'use-kbd'
+import { KbdSurfaces } from './kbd'
+import { ThemeProvider } from './theme'
+// Internal-only routes (AR etc.) are compiled in only for internal
+// deployments; the public bundle omits them entirely.
 import { INTERNAL } from './scope'
+import 'use-kbd/styles.css'
 import './index.scss'
 
 const TITLE_BASE = 'watchy'
@@ -50,14 +54,14 @@ function Layout() {
         <h1><Link to="/">👀 watchy</Link></h1>
         <nav>
           <NavLink to="/" end>Feed</NavLink>
-          <NavLink to="/health">Health</NavLink>
           <NavLink to="/graphs">Graphs</NavLink>
           {INTERNAL && <NavLink to="/actors">Actors</NavLink>}
-          <a href="https://github.com/runsascoded/watchy">GitHub</a>
+          <NavLink to="/health">Health</NavLink>
         </nav>
         {INTERNAL && <WhoamiChip />}
       </header>
       <main><Outlet /></main>
+      <KbdSurfaces />
     </div>
   )
 }
@@ -83,7 +87,11 @@ const router = createBrowserRouter([
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <ThemeProvider>
+        <HotkeysProvider>
+          <RouterProvider router={router} />
+        </HotkeysProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   </React.StrictMode>,
 )

@@ -23,6 +23,9 @@ importers:
       react-router-dom:
         specifier: ^6.28.0
         version: 6.30.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      use-kbd:
+        specifier: ^0.12.0
+        version: 0.12.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       use-prms:
         specifier: ^0.4.1
         version: 0.4.1(react@18.3.1)
@@ -770,6 +773,12 @@ packages:
     peerDependencies:
       browserslist: '>= 4.21.0'
 
+  use-kbd@0.12.0:
+    resolution: {integrity: sha512-mt5BchpLyYi1tm0brENlZYYk6ta92JIZlVmLzGBrdjHpjKR2aEzst7b1BbWJcVn/nzXfJxf8DOwibt0YsGOOeg==}
+    peerDependencies:
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
+
   use-prms@0.4.1:
     resolution: {integrity: sha512-137eYoyglpP3bnQqU+BDnr4kJnPqkibcSBpjHAIZJugtRjtInRCi+Af+hsk5lElXcIqz+ReEA4me6YrOehg6XA==}
     peerDependencies:
@@ -1449,6 +1458,14 @@ snapshots:
       browserslist: 4.28.6
       escalade: 3.2.0
       picocolors: 1.1.1
+
+  use-kbd@0.12.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+    dependencies:
+      debug: 4.4.3
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+    transitivePeerDependencies:
+      - supports-color
 
   use-prms@0.4.1(react@18.3.1):
     optionalDependencies:
