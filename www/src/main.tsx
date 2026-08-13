@@ -15,7 +15,7 @@ import { WhoamiChip } from './auth'
 import { INTERNAL } from './scope'
 import './index.scss'
 
-const TITLE_BASE = INTERNAL ? 'watchy · OA' : 'watchy'
+const TITLE_BASE = 'watchy'
 const PAGE_TITLES: Record<string, string> = {
   '/health': 'Health',
   '/graphs': 'Graphs',
@@ -47,7 +47,7 @@ function Layout() {
   return (
     <div className="layout">
       <header>
-        <h1><Link to="/">👀 watchy</Link>{INTERNAL && <span className="dim"> · OA</span>}</h1>
+        <h1><Link to="/">👀 watchy</Link></h1>
         <nav>
           <NavLink to="/" end>Feed</NavLink>
           <NavLink to="/health">Health</NavLink>

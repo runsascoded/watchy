@@ -4,10 +4,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "deploy:oa": "../scripts/oa-wrangler.sh deploy -e oa",
     "typecheck": "tsc --noEmit",
     "migrate": "wrangler d1 migrations apply watchy --remote",
-    "migrate:oa": "../scripts/oa-wrangler.sh d1 migrations apply watchy -e oa --remote",
     "migrate:local": "wrangler d1 migrations apply watchy --local",
     "test": "vitest run"
   },

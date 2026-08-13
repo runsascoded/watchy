@@ -1,7 +1,7 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { SeriesChart, type Point, type Series } from '../components/SeriesChart'
 import { get, type TargetCount } from '../api'
-import { INTERNAL, owner } from '../scope'
+import { owner } from '../scope'
 
 const N = 5
 
@@ -32,7 +32,7 @@ export default function Og() {
   return (
     <div className="og-page" data-ready={ready || undefined}>
       <header>
-        <h1>👀 watchy{INTERNAL && <span className="dim"> · OA</span>}</h1>
+        <h1>👀 watchy</h1>
         <p className="dim">GitHub stars + follows — live feed · graphs · Slack</p>
       </header>
       <div className="legend">

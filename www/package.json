@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:oa": "tsc -b && VITE_INTERNAL=1 vite build --outDir dist-oa --emptyOutDir",
     "preview": "vite preview",
     "clean": "rm -rf node_modules/.vite dist"
   },

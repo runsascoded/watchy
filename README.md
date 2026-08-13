@@ -162,16 +162,17 @@ followers = list(client.get_followers("username"))
 
 ## Run your own instance
 
-The Cloudflare stack ([`cfw/`](cfw/) worker + D1, [`www/`](www/) site) is designed to be pointed at any set of repos/orgs. Each instance is a [wrangler environment](https://developers.cloudflare.com/workers/wrangler/environments/) in [`cfw/wrangler.jsonc`](cfw/wrangler.jsonc) — two live as worked examples: the top-level env (personal: [watchy.rbw.sh]) and `env.oa` (Open Athena: [gh.oa.dev]), each fully standalone on its own CF account (see [`specs/worker-split.md`](specs/worker-split.md)).
+The Cloudflare stack ([`cfw/`](cfw/) worker + D1, [`www/`](www/) site) is designed to be pointed at any set of repos/orgs. The reuse model is **fork (or branch) and commit your config** (see [`specs/branch-model.md`](specs/branch-model.md)): [`cfw/wrangler.jsonc`](cfw/wrangler.jsonc) *is* the instance config, and each branch of this repo is a complete, deployable instance:
+
+- **`rw`** (this branch) — the base project + the personal reference instance: [watchy.rbw.sh].
+- **[`oa`]** — Open Athena's deployment ([gh.oa.dev]), a worked fork example: its commits on top of `rw` are, step by step, exactly what a fork changes (instance config → enable Slack + auth gate → rebrand → OG image).
 
 To stand one up:
 
-1. Copy an env block; set `account_id`, and `TARGETS` to your owners (`stars`: owners whose repos' stargazers to track; `follows`: users/orgs whose followers to track).
-2. `wrangler d1 create watchy` → paste `database_id`; `wrangler d1 migrations apply watchy -e <env> --remote`.
+1. Fork/branch; in `cfw/wrangler.jsonc` set `account_id` and `TARGETS` (`stars`: owners whose repos' stargazers to track; `follows`: users/orgs whose followers to track).
+2. `wrangler d1 create watchy` → paste `database_id`; `wrangler d1 migrations apply watchy --remote`.
 3. Secrets: `WATCHY_TOKEN` (GH token — must be a collaborator/admin of tracked repos for stargazer access, per GitHub's 2026-06 restriction). Fine-grained PATs are scoped to a single resource owner, so multi-org instances add per-owner overrides: `WATCHY_TOKEN_<OWNER>` (owner uppercased, non-alphanumerics → `_`, e.g. `WATCHY_TOKEN_MARIN_COMMUNITY`), falling back to `WATCHY_TOKEN`. Optional: `SLACK_BOT_TOKEN` + the `SLACK_*` vars for per-event Slack posting and weekly summaries; `SESSION_SECRET`/`ADMIN_EMAILS` for the auth-grant gate; `ANTHROPIC_API_KEY` for actor-research replies. Every feature degrades cleanly when its vars are absent.
-4. `pnpm build` in `www/` (site assets are served by the worker itself), then `wrangler deploy -e <env>`. The `*/5` cron collects; events appear at the worker's URL.
-
-Deploy entrypoints for the two reference instances: `cfw/` `pnpm deploy` / `deploy:oa` (workers; the `:oa` variants route through [`scripts/oa-wrangler.sh`](scripts/oa-wrangler.sh) for OA-account creds) and [`scripts/deploy-www.sh`](scripts/deploy-www.sh) `rbw|oa` (Pages projects; encodes which flavor bundles the auth-gate `functions/`).
+4. `pnpm build` in `www/` (site assets are served by the worker itself), then `pnpm run deploy` in `cfw/`. The `*/5` cron collects; events appear at the worker's URL.
 
 Seed history with `watchy backfill` (from a [`.watchy`-style][ryan-williams/.watchy] git ledger) if you have one; otherwise the bootstrap stargazer pass captures original `starred_at` dates on its own.
 
@@ -189,3 +190,4 @@ ruff check src/watchy/
 [GHA]: https://github.com/ryan-williams/.watchy/blob/main/.github/workflows/update.yml
 [watchy.rbw.sh]: https://watchy.rbw.sh
 [gh.oa.dev]: https://gh.oa.dev
+[`oa`]: https://github.com/runsascoded/watchy/tree/oa

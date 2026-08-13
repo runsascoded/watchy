@@ -1,7 +1,7 @@
 {
-  // Two standalone instances of one codebase (specs/worker-split.md): the
-  // top-level env is the personal (rbw) instance; `env.oa` is Open Athena's,
-  // on its own CF account + D1. Instance config = the env's `vars` block.
+  // This file IS the instance config (specs/branch-model.md): one instance per
+  // branch/fork. This branch (`rw`) is the personal reference instance
+  // (watchy.rbw.sh); the `oa` branch shows a complete fork example.
   "name": "watchy",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-01",
@@ -35,74 +35,5 @@
   },
   "observability": {
     "enabled": true
-  },
-  "env": {
-    // Open Athena instance — deploy with `wrangler deploy -e oa` (needs
-    // CLOUDFLARE_ADMIN_TOKEN with Workers Scripts:Edit + D1:Edit on this acct).
-    // Wrangler doesn't inherit vars/d1/triggers/assets into named envs, so the
-    // block is fully self-contained — which is what makes it a standalone example.
-    "oa": {
-      "name": "watchy",
-      "account_id": "74981a43be0de7712369306c7b19133d",
-      "triggers": {
-        "crons": ["*/5 * * * *", "0 14 * * 1"]
-      },
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "watchy",
-          "database_id": "d2ddeb4b-d689-481a-8015-9ed9e38e79a6"
-        }
-      ],
-      "assets": {
-        "directory": "../www/dist-oa",
-        "not_found_handling": "single-page-application",
-        "run_worker_first": ["/api/*", "/check", "/test-pushover", "/summary-preview"]
-      },
-      "vars": {
-        "TARGETS": {
-          "stars": ["Open-Athena", "marin-community"],
-          "follows": ["Open-Athena", "marin-community"]
-        },
-        "FULL_SWEEP_HOUR": "8",
-        "ADMIN_EMAILS": ["ryan.williams@openathena.ai"],
-        "DASHBOARD_URL": "https://gh.oa.dev",
-        "RESEARCH_MIN_FOLLOWERS": "100",
-        "SLACK_CHANNEL_ID": "C0BKZUV1SKH",
-        "SLACK_WORKSPACE_URL": "https://openathena.slack.com",
-        "SLACK_MATCHES": ["Open-Athena", "marin-community"],
-        "SLACK_ORG_EMOJI": {
-          "Open-Athena": "open-athena",
-          "marin-community": "marin-community"
-        },
-        "SLACK_USER_MAP": {
-          "alxmrs": "U08800J4DQR",
-          "ClassicLarry": "U0A91M5PG6Q",
-          "dlwh": "U09CB26C44Q",
-          "eric-czech": "U086ET565LP",
-          "forklady42": "U08SBKVRBS5",
-          "gonzalobenegas": "U098XCDS6NQ",
-          "hammer": "U07V3S3NQRH",
-          "Helw150": "U09UPJBGFFW",
-          "ihodes": "U09H5DG7490",
-          "jder": "U086XUETAJ0",
-          "mcwitt": "U0BH3S95CQ1",
-          "michaelabbott": "U07V13REVL5",
-          "muchanem": "U0BHEQBQBHD",
-          "penfever": "U0B7LUWF1R6",
-          "ravwojdyla": "U0A6E3V5NBW",
-          "rjpower": "U09B54B93E3",
-          "ryan-williams": "U0922LQRRM0",
-          "sophiebushwick": "U0ABUGLRLQ6",
-          "timodonnell": "U08GPNZAKHU",
-          "yaelelmatad": "U09VDTYDQKW",
-          "yonromai": "U0A66GZDNTF",
-          "znichols": "U0BHU5D4N5U"
-        }
-      },
-      "observability": {
-        "enabled": true
-      }
-    }
   }
 }
