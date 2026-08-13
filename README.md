@@ -1,4 +1,7 @@
-# `watchy`
+# `watchy` — `oa` branch
+
+> [!NOTE]
+> This branch is [Open Athena]'s deployment ([gh.oa.dev]): a live feed of GitHub engagement (stars + follows) across the Open-Athena + marin-community orgs, with Slack posting and a gated internal dashboard. Its [commits on top of `rw`][oa delta] are, step by step, exactly what a fork of this project changes — instance config, feature enablement, branding, OG image. The base project lives on the [`rw` branch][`rw`] — `oa`'s Git ancestor, and a nice minimal "hello world" instance in its own right ([watchy.rbw.sh]).
 
 [![PyPI version](https://badge.fury.io/py/watchy.svg)](https://badge.fury.io/py/watchy)
 
@@ -164,8 +167,8 @@ followers = list(client.get_followers("username"))
 
 The Cloudflare stack ([`cfw/`](cfw/) worker + D1, [`www/`](www/) site) is designed to be pointed at any set of repos/orgs. The reuse model is **fork (or branch) and commit your config** (see [`specs/branch-model.md`](specs/branch-model.md)): [`cfw/wrangler.jsonc`](cfw/wrangler.jsonc) *is* the instance config, and each branch of this repo is a complete, deployable instance:
 
-- **`rw`** (this branch) — the base project + the personal reference instance: [watchy.rbw.sh].
-- **[`oa`]** — Open Athena's deployment ([gh.oa.dev]), a worked fork example: its commits on top of `rw` are, step by step, exactly what a fork changes (instance config → enable Slack + auth gate → rebrand → OG image).
+- **[`rw`]** — the base project + the personal reference instance: [watchy.rbw.sh].
+- **`oa`** (this branch) — Open Athena's deployment ([gh.oa.dev]), a worked fork example: its [commits on top of `rw`][oa delta] are, step by step, exactly what a fork changes (instance config → enable Slack + auth gate → rebrand → OG image).
 
 To stand one up:
 
@@ -190,4 +193,6 @@ ruff check src/watchy/
 [GHA]: https://github.com/ryan-williams/.watchy/blob/main/.github/workflows/update.yml
 [watchy.rbw.sh]: https://watchy.rbw.sh
 [gh.oa.dev]: https://gh.oa.dev
-[`oa`]: https://github.com/runsascoded/watchy/tree/oa
+[`rw`]: https://github.com/runsascoded/watchy/tree/rw
+[oa delta]: https://github.com/runsascoded/watchy/compare/rw...oa
+[Open Athena]: https://www.openathena.ai/
