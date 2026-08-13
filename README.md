@@ -171,6 +171,8 @@ To stand one up:
 3. Secrets: `WATCHY_TOKEN` (GH token — must be a collaborator/admin of tracked repos for stargazer access, per GitHub's 2026-06 restriction). Fine-grained PATs are scoped to a single resource owner, so multi-org instances add per-owner overrides: `WATCHY_TOKEN_<OWNER>` (owner uppercased, non-alphanumerics → `_`, e.g. `WATCHY_TOKEN_MARIN_COMMUNITY`), falling back to `WATCHY_TOKEN`. Optional: `SLACK_BOT_TOKEN` + the `SLACK_*` vars for per-event Slack posting and weekly summaries; `SESSION_SECRET`/`ADMIN_EMAILS` for the auth-grant gate; `ANTHROPIC_API_KEY` for actor-research replies. Every feature degrades cleanly when its vars are absent.
 4. `pnpm build` in `www/` (site assets are served by the worker itself), then `wrangler deploy -e <env>`. The `*/5` cron collects; events appear at the worker's URL.
 
+Deploy entrypoints for the two reference instances: `cfw/` `pnpm deploy` / `deploy:oa` (workers; the `:oa` variants route through [`scripts/oa-wrangler.sh`](scripts/oa-wrangler.sh) for OA-account creds) and [`scripts/deploy-www.sh`](scripts/deploy-www.sh) `rbw|oa` (Pages projects; encodes which flavor bundles the auth-gate `functions/`).
+
 Seed history with `watchy backfill` (from a [`.watchy`-style][ryan-williams/.watchy] git ledger) if you have one; otherwise the bootstrap stargazer pass captures original `starred_at` dates on its own.
 
 ## Development
