@@ -2,7 +2,7 @@
   "name": "watchy-www",
   "private": true,
   "type": "module",
-  "devPort": 4199,
+  "devPort": 4201,
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

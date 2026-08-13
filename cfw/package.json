@@ -3,9 +3,9 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "deploy": "../scripts/oa-wrangler.sh deploy",
     "typecheck": "tsc --noEmit",
-    "migrate": "wrangler d1 migrations apply watchy --remote",
+    "migrate": "../scripts/oa-wrangler.sh d1 migrations apply watchy --remote",
     "migrate:local": "wrangler d1 migrations apply watchy --local",
     "test": "vitest run"
   },

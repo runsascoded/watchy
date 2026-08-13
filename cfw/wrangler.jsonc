@@ -1,8 +1,10 @@
 {
   // This file IS the instance config (specs/branch-model.md): one instance per
-  // branch/fork. This branch (`rw`) is the personal reference instance
-  // (watchy.rbw.sh); the `oa` branch shows a complete fork example.
+  // branch/fork. This branch (`oa`) is Open Athena's instance (gh.oa.dev),
+  // forked from the `rw` branch's reference config. Deploys route through
+  // scripts/oa-wrangler.sh (OA-account creds).
   "name": "watchy",
+  "account_id": "74981a43be0de7712369306c7b19133d",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-01",
   "triggers": {
@@ -14,11 +16,12 @@
     {
       "binding": "DB",
       "database_name": "watchy",
-      "database_id": "0ea16a24-84b7-4ccc-908a-5876a33aef33"
+      "database_id": "d2ddeb4b-d689-481a-8015-9ed9e38e79a6"
     }
   ],
   "dev": {
-    "port": 4200
+    // rw uses 4199/4200 (www/worker) — offset so both branches' dev servers coexist
+    "port": 4202
   },
   "assets": {
     "directory": "../www/dist",
@@ -27,8 +30,8 @@
   },
   "vars": {
     "TARGETS": {
-      "stars": ["runsascoded", "ryan-williams", "hudcostreets", "bikejc", "embankmentjc", "neighbor-ryan"],
-      "follows": ["runsascoded", "ryan-williams", "hudcostreets", "bikejc", "embankmentjc", "neighbor-ryan"]
+      "stars": ["Open-Athena", "marin-community"],
+      "follows": ["Open-Athena", "marin-community"]
     },
     // UTC hour of the daily full sweep (bypasses the count-delta gate)
     "FULL_SWEEP_HOUR": "8"

@@ -1,4 +1,4 @@
-// og:image capture (dev server up): `scrns -h 4199 -o tmp-shots -i '^og$'`, then
+// og:image capture (dev server up): `scrns -h 4201 -o tmp-shots -i '^og$'`, then
 // `sips -s format jpeg -s formatOptions 85 tmp-shots/og.png --out public/og.jpg`
 export default {
   og: {
