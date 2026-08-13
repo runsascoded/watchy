@@ -3,7 +3,7 @@ import { LookupModal, Omnibar, SequenceModal, ShortcutsModal, SpeedDial, useActi
 import { useTheme, type Theme } from './theme'
 import { INTERNAL } from './scope'
 
-export const REPO_URL = 'https://github.com/runsascoded/watchy/tree/rw'
+export const REPO_URL = 'https://github.com/runsascoded/watchy'
 
 export function GitHubIcon() {
   return (

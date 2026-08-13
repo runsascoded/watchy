@@ -32,7 +32,7 @@ export default function Og() {
 
   return (
     <div className="og-page" data-ready={ready || undefined}>
-      <OgHeader tagline="GitHub stars + follows — live feed · graphs · Slack" />
+      <OgHeader tagline="Open Athena + Marin — stars · follows · live feed · Slack" />
       <div className="legend">
         {series.map(s => (
           <span key={s.target} className="li">

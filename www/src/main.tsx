@@ -12,7 +12,7 @@ import Og from './pages/Og'
 import OgActors from './pages/OgActors'
 import { WhoamiChip } from './auth'
 import { HotkeysProvider } from 'use-kbd'
-import { KbdSurfaces } from './kbd'
+import { GitHubIcon, KbdSurfaces } from './kbd'
 import { ThemeProvider } from './theme'
 // Internal-only routes (AR etc.) are compiled in only for internal
 // deployments; the public bundle omits them entirely.
@@ -20,7 +20,7 @@ import { INTERNAL } from './scope'
 import 'use-kbd/styles.css'
 import './index.scss'
 
-const TITLE_BASE = 'watchy'
+const TITLE_BASE = 'OA × GitHub'
 const PAGE_TITLES: Record<string, string> = {
   '/health': 'Health',
   '/graphs': 'Graphs',
@@ -52,7 +52,7 @@ function Layout() {
   return (
     <div className="layout">
       <header>
-        <h1><Link to="/">👀 watchy</Link></h1>
+        <h1><Link to="/"><img className="brand" src="/org/open-athena.png?v=3" alt="OA" /><span className="x">×</span><span className="gh"><GitHubIcon /></span></Link></h1>
         <nav>
           <NavLink to="/" end>Feed</NavLink>
           <NavLink to="/graphs">Graphs</NavLink>
@@ -62,6 +62,7 @@ function Layout() {
         {INTERNAL && <WhoamiChip />}
       </header>
       <main><Outlet /></main>
+      <footer className="dim">powered by <a href="https://github.com/runsascoded/watchy/tree/rw">👀 watchy</a></footer>
       <KbdSurfaces />
     </div>
   )
