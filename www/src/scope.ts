@@ -1,6 +1,5 @@
-// Compile-time feature bit: internal builds add the authed/admin surfaces
-// (Actors, Access, WhoamiChip). Off in the public reference instance; forks
-// that run the auth gate flip it on (see the `oa` branch).
-export const INTERNAL = import.meta.env.VITE_INTERNAL === '1'
+// Compile-time feature bit: this instance runs the auth gate, so the authed/
+// admin surfaces (Actors, Access, WhoamiChip) are compiled in.
+export const INTERNAL = true
 
 export const owner = (target: string) => target.split('/')[0]
