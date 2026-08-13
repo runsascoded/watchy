@@ -4,6 +4,11 @@ export interface Env {
   DB: D1Database
   WATCHY_TOKEN: string
   TARGETS: Targets
+  // Per-owner token overrides (fine-grained PATs are scoped to ONE resource
+  // owner, so multi-org instances need one per org): secret named
+  // WATCHY_TOKEN_<OWNER> with the owner uppercased and -/. → _
+  // (e.g. WATCHY_TOKEN_MARIN_COMMUNITY). Falls back to WATCHY_TOKEN.
+  [k: `WATCHY_TOKEN_${string}`]: string | undefined
   FULL_SWEEP_HOUR: string
   PUSHOVER_TOKEN?: string
   PUSHOVER_USER?: string
@@ -24,6 +29,11 @@ export interface Env {
 interface Targets {
   stars: string[]
   follows: string[]
+}
+
+/** Token for API calls about `owner`'s resources: WATCHY_TOKEN_<OWNER> else WATCHY_TOKEN. */
+export function tokenFor(env: Env, owner: string): string {
+  return env[`WATCHY_TOKEN_${owner.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`] ?? env.WATCHY_TOKEN
 }
 
 export interface CollectResult {
@@ -83,7 +93,7 @@ export async function collect(env: Env, fullSweep: boolean, runId: number | null
   const insCount = db.prepare('INSERT OR REPLACE INTO counts (ts, target, count) VALUES (?, ?, ?)')
 
   for (const owner of targets.stars) {
-    const repos = await listRepos(env.WATCHY_TOKEN, owner)
+    const repos = await listRepos(tokenFor(env, owner), owner)
     for (const repo of repos) {
       const name = repo.full_name
       const stateCount = starCounts.get(name) ?? 0
@@ -95,7 +105,7 @@ export async function collect(env: Env, fullSweep: boolean, runId: number | null
 
       let gazers
       try {
-        gazers = await listStargazers(env.WATCHY_TOKEN, name)
+        gazers = await listStargazers(tokenFor(env, owner), name)
       } catch (e) {
         // 403/404 are expected states since GitHub's 2026-06 stargazer restriction
         // (lost collaborator access, repo deleted/renamed) — skip, don't fail the run.
@@ -131,7 +141,7 @@ export async function collect(env: Env, fullSweep: boolean, runId: number | null
   }
 
   for (const target of targets.follows) {
-    const followers = await listFollowers(env.WATCHY_TOKEN, target)
+    const followers = await listFollowers(tokenFor(env, target), target)
     const prev = followState.get(target) ?? new Map<number, { login: string }>()
     const seen = new Set<number>()
     for (const f of followers) {

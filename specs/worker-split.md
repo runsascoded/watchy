@@ -36,7 +36,7 @@ Phase 1 — no credentials needed (this commit):
 Phase 2 — needs an upgraded OA token (`CLOUDFLARE_ADMIN_TOKEN` + Workers Scripts:Edit, D1:Edit) and an OA-owned GH token (collaborator on OA/marin repos, for stargazer access):
 - [ ] `wrangler d1 create watchy` on OA acct → fill `database_id`; `pnpm migrate:oa`
 - [ ] Import phase-1 dump; spot-check counts vs. live
-- [ ] Secrets on `env.oa`: `WATCHY_TOKEN` (OA GH token), `SLACK_BOT_TOKEN`, `SESSION_SECRET`, `ANTHROPIC_API_KEY`
+- [ ] Secrets on `env.oa`: `WATCHY_TOKEN` (fine-grained PAT, resource owner Open-Athena) + `WATCHY_TOKEN_MARIN_COMMUNITY` (second fine-grained PAT — one resource owner per token; `tokenFor()` in collect.ts resolves per owner), `SLACK_BOT_TOKEN`, `SESSION_SECRET`, `ANTHROPIC_API_KEY`
 - [ ] `pnpm deploy:oa`; verify `/check`, collect run, Slack post, `/api/*`
 
 Phase 3 — cutover + trim:

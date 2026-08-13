@@ -168,7 +168,7 @@ To stand one up:
 
 1. Copy an env block; set `account_id`, and `TARGETS` to your owners (`stars`: owners whose repos' stargazers to track; `follows`: users/orgs whose followers to track).
 2. `wrangler d1 create watchy` → paste `database_id`; `wrangler d1 migrations apply watchy -e <env> --remote`.
-3. Secrets: `WATCHY_TOKEN` (GH token — must be a collaborator/admin of tracked repos for stargazer access, per GitHub's 2026-06 restriction). Optional: `SLACK_BOT_TOKEN` + the `SLACK_*` vars for per-event Slack posting and weekly summaries; `SESSION_SECRET`/`ADMIN_EMAILS` for the auth-grant gate; `ANTHROPIC_API_KEY` for actor-research replies. Every feature degrades cleanly when its vars are absent.
+3. Secrets: `WATCHY_TOKEN` (GH token — must be a collaborator/admin of tracked repos for stargazer access, per GitHub's 2026-06 restriction). Fine-grained PATs are scoped to a single resource owner, so multi-org instances add per-owner overrides: `WATCHY_TOKEN_<OWNER>` (owner uppercased, non-alphanumerics → `_`, e.g. `WATCHY_TOKEN_MARIN_COMMUNITY`), falling back to `WATCHY_TOKEN`. Optional: `SLACK_BOT_TOKEN` + the `SLACK_*` vars for per-event Slack posting and weekly summaries; `SESSION_SECRET`/`ADMIN_EMAILS` for the auth-grant gate; `ANTHROPIC_API_KEY` for actor-research replies. Every feature degrades cleanly when its vars are absent.
 4. `pnpm build` in `www/` (site assets are served by the worker itself), then `wrangler deploy -e <env>`. The `*/5` cron collects; events appear at the worker's URL.
 
 Seed history with `watchy backfill` (from a [`.watchy`-style][ryan-williams/.watchy] git ledger) if you have one; otherwise the bootstrap stargazer pass captures original `starred_at` dates on its own.
