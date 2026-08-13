@@ -96,11 +96,15 @@ describe('renderActorOp', () => {
     ], anon, { counts: [1252, 130], orgEmoji: { 'marin-community': 'marin-community' } })
     expect(msg.username).toBe('mearcstapa-gqz ⭐ marin, 🔔 marin-community')
     expect(msg.text.split('\n')).toEqual([
+      '<https://github.com/mearcstapa-gqz|mearcstapa-gqz>',
       ':marin-community: <https://github.com/marin-community/marin|marin> · 1,252 :star:',
       ':marin-community: <https://github.com/marin-community|marin-community> · 130 :bell:',
     ])
-    // low-info: no section block, just the rich_text event refs (org emoji as elements)
+    // low-info: bare GH-link section, then the rich_text event refs (org emoji as elements)
     expect(msg.blocks).toEqual([{
+      type: 'section',
+      text: { type: 'mrkdwn', text: '<https://github.com/mearcstapa-gqz|mearcstapa-gqz>' },
+    }, {
       type: 'rich_text',
       elements: [
         {
@@ -180,11 +184,12 @@ describe('renderActorOp', () => {
     )
   })
 
-  it('low-info actors get just the event-ref line, login-voiced', () => {
+  it('low-info actors get the bare GH profile link + event-ref line, login-voiced', () => {
     const anon = bits({ login: 'mearcstapa-gqz', followers: 1 })
     const msg = renderActorOp([ev(9, '2026-08-10T16:20:00Z', 'follow', 'marin-community', 'mearcstapa-gqz')], anon, { counts: [130] })
     expect(msg.username).toBe('mearcstapa-gqz 🔔 marin-community')
     expect(msg.text.split('\n')).toEqual([
+      '<https://github.com/mearcstapa-gqz|mearcstapa-gqz>',
       '<https://github.com/marin-community|marin-community> · 130 :bell:',
     ])
   })

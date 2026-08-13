@@ -26,6 +26,7 @@ interface EventRow {
   kind: string
   target: string
   login: string
+  uid?: number | null
 }
 
 export function renderEvent(e: EventRow, count?: number, slackUser?: string, dashboardUrl?: string, orgEmoji?: string): string {
@@ -158,7 +159,8 @@ export function renderActorOp(events: EventRow[], a: ActorBits | null, opts: Act
       lines.push(`orgs: ${links.join(', ')}${orgs.length > 6 ? ` +${orgs.length - 6}` : ''}`)
     }
     if (a.research) lines.push(`:mag: ${a.research}`)
-  } else if (slackUser) {
+  } else {
+    // Low-info/unenriched actors still lead with the bare GH profile link
     lines.push(gh)
   }
   const blocks: unknown[] = []
@@ -189,7 +191,11 @@ export function renderActorOp(events: EventRow[], a: ActorBits | null, opts: Act
   blocks.push({ type: 'rich_text', elements: refSections })
   return {
     username,
-    icon_url: `https://github.com/${encodeURIComponent(login)}.png?size=96`,
+    // uid-keyed avatars.githubusercontent.com is redirect-free — Slack fetches
+    // icon_url at post time and falls back to the app pfp when the fetch hiccups
+    icon_url: events[0].uid != null
+      ? `https://avatars.githubusercontent.com/u/${events[0].uid}?s=96&v=4`
+      : `https://github.com/${encodeURIComponent(login)}.png?size=96`,
     text: lines.join('\n'),
     blocks,
   }
@@ -206,7 +212,7 @@ export async function syncSlack(env: Env): Promise<number> {
   const binds = matches.flatMap(m => [m, `${m}/%`])
   const { results } = await env.DB
     .prepare(
-      `SELECT e.id, e.ts, e.kind, e.target, e.login FROM events e
+      `SELECT e.id, e.ts, e.kind, e.target, e.login, e.uid FROM events e
        LEFT JOIN slack_posts sp ON sp.event_id = e.id
        WHERE sp.event_id IS NULL AND (${where})
        ORDER BY e.ts, e.id LIMIT ${PER_RUN_CAP}`,
