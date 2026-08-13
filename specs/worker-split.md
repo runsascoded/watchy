@@ -34,10 +34,12 @@ Phase 1 — no credentials needed (this commit):
 - [x] README: "Run your own instance" section (the two envs as worked examples)
 
 Phase 2 — needs an upgraded OA token (`CLOUDFLARE_ADMIN_TOKEN` + Workers Scripts:Edit, D1:Edit) and an OA-owned GH token (collaborator on OA/marin repos, for stargazer access):
-- [ ] `wrangler d1 create watchy` on OA acct → fill `database_id`; `pnpm migrate:oa`
-- [ ] Import phase-1 dump; spot-check counts vs. live
-- [ ] Secrets on `env.oa`: `WATCHY_TOKEN` (fine-grained PAT, resource owner Open-Athena) + `WATCHY_TOKEN_MARIN_COMMUNITY` (second fine-grained PAT — one resource owner per token; `tokenFor()` in collect.ts resolves per owner), `SLACK_BOT_TOKEN`, `SESSION_SECRET`, `ANTHROPIC_API_KEY`
-- [ ] `pnpm deploy:oa`; verify `/check`, collect run, Slack post, `/api/*`
+- [x] `wrangler d1 create watchy` on OA acct (`d2ddeb4b-d689-481a-8015-9ed9e38e79a6`, via `scripts/oa-wrangler.sh`); migrations applied
+- [x] Import dump (23,088 rows); counts verified vs. live (2,436 ev / 2,399 st / 156 fo / 2,344 ac / 2,436 sp / 2 gr)
+- [x] Secrets on `env.oa`: `WATCHY_TOKEN` (fine-grained PAT, resource owner Open-Athena) + `WATCHY_TOKEN_MARIN_COMMUNITY` (second fine-grained PAT — one resource owner per token; `tokenFor()` in collect.ts resolves per owner), `SESSION_SECRET` (reused → sessions carry over). Slack/Anthropic deliberately deferred to phase 3 (no double-posting while the personal worker still posts).
+- [x] Deployed: `watchy.open-athena.workers.dev` — crons live, delta runs green, `/api/*` serving imported data
+- [ ] Fine-grained PATs 403 on stargazers with Metadata:Read alone ("Resource not accessible by personal access token"; classic/OAuth collaborator tokens still 200) → add **Administration: Read-only** to both tokens
+- [ ] Full sweep needs Workers Paid on the OA acct (free = 50 subrequests/invocation; paid = 10,000) — upgraded, awaiting runtime propagation
 
 Phase 3 — cutover + trim:
 - [ ] `watchy-internal` Pages: set `WORKER_ORIGIN` → OA worker URL; verify gh.oa.dev (API + auth cookie flow relays through the proxy unchanged)

@@ -66,7 +66,8 @@ def inserts(table: str, rs: list[dict]) -> list[str]:
     stmts = []
     for i in range(0, len(rs), CHUNK):
         vals = ",\n  ".join("(" + ", ".join(lit(r[c]) for c in cols) + ")" for r in rs[i:i + CHUNK])
-        stmts.append(f"INSERT INTO {table} ({', '.join(cols)}) VALUES\n  {vals};")
+        # OR IGNORE: re-runs / delta syncs skip rows already imported
+        stmts.append(f"INSERT OR IGNORE INTO {table} ({', '.join(cols)}) VALUES\n  {vals};")
     return stmts
 
 

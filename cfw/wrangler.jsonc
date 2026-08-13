@@ -100,8 +100,7 @@
         {
           "binding": "DB",
           "database_name": "watchy",
-          // TODO(phase 2): `wrangler d1 create watchy` on the OA acct, paste id
-          "database_id": "TBD"
+          "database_id": "d2ddeb4b-d689-481a-8015-9ed9e38e79a6"
         }
       ],
       "assets": {
