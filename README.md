@@ -160,6 +160,19 @@ logins = save_logins_to_txt(iter(stargazers), Path("stargazers.txt"))
 followers = list(client.get_followers("username"))
 ```
 
+## Run your own instance
+
+The Cloudflare stack ([`cfw/`](cfw/) worker + D1, [`www/`](www/) site) is designed to be pointed at any set of repos/orgs. Each instance is a [wrangler environment](https://developers.cloudflare.com/workers/wrangler/environments/) in [`cfw/wrangler.jsonc`](cfw/wrangler.jsonc) — two live as worked examples: the top-level env (personal: [watchy.rbw.sh]) and `env.oa` (Open Athena: [gh.oa.dev]), each fully standalone on its own CF account (see [`specs/worker-split.md`](specs/worker-split.md)).
+
+To stand one up:
+
+1. Copy an env block; set `account_id`, and `TARGETS` to your owners (`stars`: owners whose repos' stargazers to track; `follows`: users/orgs whose followers to track).
+2. `wrangler d1 create watchy` → paste `database_id`; `wrangler d1 migrations apply watchy -e <env> --remote`.
+3. Secrets: `WATCHY_TOKEN` (GH token — must be a collaborator/admin of tracked repos for stargazer access, per GitHub's 2026-06 restriction). Optional: `SLACK_BOT_TOKEN` + the `SLACK_*` vars for per-event Slack posting and weekly summaries; `SESSION_SECRET`/`ADMIN_EMAILS` for the auth-grant gate; `ANTHROPIC_API_KEY` for actor-research replies. Every feature degrades cleanly when its vars are absent.
+4. `pnpm build` in `www/` (site assets are served by the worker itself), then `wrangler deploy -e <env>`. The `*/5` cron collects; events appear at the worker's URL.
+
+Seed history with `watchy backfill` (from a [`.watchy`-style][ryan-williams/.watchy] git ledger) if you have one; otherwise the bootstrap stargazer pass captures original `starred_at` dates on its own.
+
 ## Development
 
 ```bash
@@ -172,3 +185,5 @@ ruff check src/watchy/
 
 [ryan-williams/.watchy]: https://github.com/ryan-williams/.watchy
 [GHA]: https://github.com/ryan-williams/.watchy/blob/main/.github/workflows/update.yml
+[watchy.rbw.sh]: https://watchy.rbw.sh
+[gh.oa.dev]: https://gh.oa.dev
