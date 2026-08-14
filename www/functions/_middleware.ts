@@ -18,7 +18,7 @@ interface OgRoute {
 }
 
 const ROUTES: Record<string, OgRoute> = {
-  '/graphs': { title: 'Graphs', description: 'Stars-over-time history per repo' },
+  '/graphs': { title: 'Graphs', description: 'Stars-over-time history per repo', image: '/og-graphs.jpg' },
   '/health': { title: 'Health', description: 'Collector pipeline health: runs, events, current state' },
   '/actors': { title: 'Actors', description: 'Who is starring + following — enriched, interest-ranked', image: '/og-actors.jpg' },
 }
