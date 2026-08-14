@@ -23,7 +23,7 @@ Fork-only *extensions* (new pages, new trackers) are fair game on `oa` when they
 
 ## Flow
 
-- `rw` is upstream. Periodically `git merge rw` into `oa` (**merge, not rebase** — the fork topology is part of the story; `oa`'s tutorial commits stay at the branch root).
+- `rw` is upstream. After the initial fork, changes flow between branches as **cherry-picks** (no merges) — both branches stay linear, and `oa`'s history reads as: the fork's tutorial commits, then per-change deltas. Instance-specific bits (card re-renders, branding touches) fold into the CP's conflict resolution.
 - Local layout: root checkout = `oa`; `wt/rw` worktree = `rw` (direnv finds the root `.envrc` from `wt/`).
 - Deploys: each branch's `cfw/` `pnpm run deploy` (worker) + `scripts/deploy-www.sh` (Pages) deploy *that* instance. On `oa` these route through `scripts/oa-wrangler.sh` (swaps in `CLOUDFLARE_ADMIN_TOKEN` + the OA account id, since ambient creds are personal).
 - Dev ports: `rw` www 4199 / worker 4200; `oa` www 4201 / worker 4202 — both branches' dev servers can run side by side.
