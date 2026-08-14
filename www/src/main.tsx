@@ -9,6 +9,7 @@ import Graphs from './pages/Graphs'
 import Actors from './pages/Actors'
 import Access from './pages/Access'
 import Og from './pages/Og'
+import OgActors from './pages/OgActors'
 import { WhoamiChip } from './auth'
 import { HotkeysProvider } from 'use-kbd'
 import { KbdSurfaces } from './kbd'
@@ -69,6 +70,8 @@ function Layout() {
 const router = createBrowserRouter([
   // Chrome-less 1200×630 render of the stars chart — screenshotted to public/og.jpg
   { path: '/og', element: <Og /> },
+  // Sibling per-page cards follow the /<page>/og pattern (specs/og-routes.md)
+  ...(INTERNAL ? [{ path: '/actors/og', element: <OgActors /> }] : []),
   {
     element: <Layout />,
     children: [

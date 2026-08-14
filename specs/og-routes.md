@@ -1,6 +1,6 @@
 # Per-route OG metadata + dynamic OG images
 
-Backlog (RW, 2026-08-13). Today each instance has exactly one set of OG tags + one `og.jpg` (global, in `index.html`): opengraph.xyz on `gh.oa.dev/actors` shows the homepage card, generic title, no per-page description. Also flagged: title/description could use more SERP meat, `twitter:card` missing.
+In progress (RW, 2026-08-13). Done: per-route tag injection (`www/functions/_middleware.ts` — title/og:title suffix, og:description, og:image override, global `twitter:card` + meta description; live where functions/ deploys, i.e. the internal flavor) and the `/actors/og` card route (`OgActors.tsx`, gated like `/actors`; captured to `public/og-actors.jpg` on the `oa` branch via an authed browser since `/api/actors` needs the `internal` scope). Remaining: dynamic OGI (options below), other pages' cards. Today each instance has exactly one set of OG tags + one `og.jpg` (global, in `index.html`): opengraph.xyz on `gh.oa.dev/actors` shows the homepage card, generic title, no per-page description. Also flagged: title/description could use more SERP meat, `twitter:card` missing.
 
 ## Per-route OG pages: the `/<page>/og` pattern
 

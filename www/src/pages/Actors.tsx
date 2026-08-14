@@ -11,14 +11,14 @@ const MAX_ACTS = 8
 const MAX_ORGS = 4
 const DAY_MS = 86_400_000
 
-interface ActorEvent {
+export interface ActorEvent {
   ts: string
   kind: string
   target: string
   active: number // star/follow still present in current state
 }
 
-interface Actor {
+export interface Actor {
   login: string
   name: string | null
   company: string | null
@@ -69,7 +69,7 @@ const MULTI_EVENT_BONUS = 0.15
  *   contribute nothing; the max (vs a sum) keeps "newest action" the dominant axis.
  * hl → 0 makes the newest action dominate (≈ rev-chron); `sort=recent` is the exact version.
  */
-function scoreActor(a: Actor, hlDays: number, winDays: number, now: number): Score {
+export function scoreActor(a: Actor, hlDays: number, winDays: number, now: number): Score {
   const flw = a.followers ?? 0
   const reach = flw + (a.bsky_followers ?? 0) + (a.x_followers ?? 0)
   const fame = Math.log10(1 + reach)
@@ -93,7 +93,7 @@ function scoreActor(a: Actor, hlDays: number, winDays: number, now: number): Sco
 // Insiders: OA or marin-community org members, or company says Open Athena —
 // kept in sync with the worker's NOT_OA (cfw/src/index.ts)
 const OA_RE = /open.?athena/i
-function isInsider(a: Actor): boolean {
+export function isInsider(a: Actor): boolean {
   return (a.orgs?.includes('"Open-Athena"') ?? false)
     || (a.orgs?.includes('"marin-community"') ?? false)
     || OA_RE.test(a.company ?? '')

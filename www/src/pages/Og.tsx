@@ -1,4 +1,5 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
+import { OgHeader } from '../components/OgHeader'
 import { SeriesChart, type Point, type Series } from '../components/SeriesChart'
 import { get, type TargetCount } from '../api'
 import { owner } from '../scope'
@@ -31,10 +32,7 @@ export default function Og() {
 
   return (
     <div className="og-page" data-ready={ready || undefined}>
-      <header>
-        <h1>👀 watchy</h1>
-        <p className="dim">GitHub stars + follows — live feed · graphs · Slack</p>
-      </header>
+      <OgHeader tagline="GitHub stars + follows — live feed · graphs · Slack" />
       <div className="legend">
         {series.map(s => (
           <span key={s.target} className="li">
