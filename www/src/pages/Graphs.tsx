@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { Tooltip } from '../components/Tooltip'
 import { SeriesChart, type Point, type Series } from '../components/SeriesChart'
@@ -11,12 +11,28 @@ function Favicon({ login }: { login: string }) {
   return <img className="favicon" src={`https://github.com/${login}.png?size=32`} alt="" />
 }
 
-/** One section: unified legend (click LI to remove) + filter input to add targets. */
+/** One section: unified legend + filter input to add targets.
+ * LI hover highlights its series; click pins ("solo": fades others + rescales
+ * the y-domain to it); re-click / outside-click unpins; ✕ removes. */
 function Section({ title, all }: { title: string; all: TargetCount[] }) {
   const [sel, setSel] = useState<Map<string, number>>(
     () => new Map(all.slice(0, 4).map((t, i) => [t.target, i])),
   )
   const [q, setQ] = useState('')
+  const [hovered, setHovered] = useState<string | null>(null)
+  const [pinned, setPinned] = useState<string | null>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  // Clicking outside this section un-pins (clicks within — chart hovers,
+  // legend, adder — keep it)
+  useEffect(() => {
+    if (pinned == null) return
+    const onDown = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setPinned(null)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [pinned])
 
   // Basename-only labels when unambiguous across the section's full target list
   const labels = useMemo(() => {
@@ -42,6 +58,8 @@ function Section({ title, all }: { title: string; all: TargetCount[] }) {
     const next = new Map(sel)
     next.delete(target)
     setSel(next)
+    if (pinned === target) setPinned(null)
+    if (hovered === target) setHovered(null)
   }
 
   const active = [...sel.entries()]
@@ -65,15 +83,21 @@ function Section({ title, all }: { title: string; all: TargetCount[] }) {
     : []
 
   return (
-    <div className="chart">
+    <div className="chart" ref={rootRef}>
       <h2>{title}</h2>
       <div className="legend">
         {series.map(s => (
-          <Tooltip key={s.target} tip={`${s.target} — click to remove`}>
-          <button className="li" onClick={() => remove(s.target)}>
+          <Tooltip key={s.target} tip={`${s.target} — click to ${pinned === s.target ? 'unpin' : 'spotlight'}, ✕ to remove`}>
+          <button
+            className={`li${pinned === s.target ? ' pinned' : ''}`}
+            onMouseEnter={() => setHovered(s.target)}
+            onMouseLeave={() => setHovered(h => (h === s.target ? null : h))}
+            onClick={() => setPinned(p => (p === s.target ? null : s.target))}
+          >
             <span className="swatch" style={{ background: `var(--s${s.slot + 1})` }} />
             <Favicon login={s.owner} />
             {s.label}
+            <span className="rm" onClick={e => { e.stopPropagation(); remove(s.target) }}>✕</span>
           </button>
           </Tooltip>
         ))}
@@ -97,7 +121,7 @@ function Section({ title, all }: { title: string; all: TargetCount[] }) {
           )}
         </span>
       </div>
-      <SeriesChart series={series} />
+      <SeriesChart series={series} hovered={hovered} pinned={pinned} />
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 
 const { max, min, floor, ceil, log10 } = Math
 
@@ -20,17 +20,24 @@ function yTicks(y0: number, y1: number): number[] {
   return ticks
 }
 
-/** Step-after multi-series line chart; values live in a cursor-following hover box (HB). */
-export function SeriesChart({ series }: { series: Series[] }) {
+/** Step-after multi-series line chart; values live in a cursor-following hover box (HB).
+ * Legend-driven interaction (pltly semantics): `active = pinned ?? hovered` fades the
+ * other series; a pin additionally rescales the y-domain to the pinned series alone
+ * (off-domain neighbors stay faded, clipped at the plot edge). */
+export function SeriesChart({ series, hovered, pinned }: { series: Series[]; hovered?: string | null; pinned?: string | null }) {
+  const active = pinned ?? hovered ?? null
   const [hover, setHover] = useState<{ t: number; cx: number; cy: number } | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  const clipId = useId()
   const loaded = series.filter(s => s.points.length)
 
   const { x0, x1, y0, y1 } = useMemo(() => {
     const ts = loaded.flatMap(s => [Date.parse(s.points[0].ts), Date.parse(s.points[s.points.length - 1].ts)])
-    // Data-driven y-domain (not zero-based) so small recent deltas stay visible
-    const counts = loaded.flatMap(s => s.points.map(p => p.count))
+    // Data-driven y-domain (not zero-based) so small recent deltas stay visible;
+    // pinned solo → domain from that series only
+    const dom = pinned != null ? loaded.filter(s => s.target === pinned) : loaded
+    const counts = dom.flatMap(s => s.points.map(p => p.count))
     const lo = counts.length ? min(...counts) : 0
     const hi = counts.length ? max(...counts) : 1
     const pad = max(1, (hi - lo) * 0.05)
@@ -40,7 +47,7 @@ export function SeriesChart({ series }: { series: Series[] }) {
       y0: max(0, lo - pad),
       y1: hi + pad,
     }
-  }, [loaded])
+  }, [loaded, pinned])
 
   const px = (t: number) => PAD.l + ((t - x0) / (x1 - x0)) * (W - PAD.l - PAD.r)
   const py = (v: number) => H - PAD.b - ((v - y0) / (y1 - y0)) * (H - PAD.t - PAD.b)
@@ -107,9 +114,19 @@ export function SeriesChart({ series }: { series: Series[] }) {
         {months.map(t => (
           <text key={t} className="tick" x={px(t)} y={H - 6} textAnchor="middle">{new Date(t).toISOString().slice(0, 7)}</text>
         ))}
-        {loaded.map(s => (
-          <path key={s.target} d={path(s.points)} fill="none" strokeWidth={2} stroke={`var(--s${s.slot + 1})`} />
-        ))}
+        <clipPath id={clipId}>
+          <rect x={PAD.l} y={PAD.t} width={W - PAD.l - PAD.r} height={H - PAD.t - PAD.b} />
+        </clipPath>
+        <g clipPath={`url(#${clipId})`}>
+          {/* Active series drawn last (on top) */}
+          {(active != null ? [...loaded].sort((a, b) => +(a.target === active) - +(b.target === active)) : loaded).map(s => (
+            <path
+              key={s.target}
+              className={`series${active != null && s.target !== active ? ' faded' : ''}`}
+              d={path(s.points)} fill="none" strokeWidth={2} stroke={`var(--s${s.slot + 1})`}
+            />
+          ))}
+        </g>
         {hover != null && <line className="xhair" x1={px(hover.t)} x2={px(hover.t)} y1={PAD.t} y2={H - PAD.b} />}
       </svg>
       {hb && hb.length > 0 && (
