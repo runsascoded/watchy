@@ -1,47 +1,64 @@
-import { useQueries, useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { get, type Event } from '../api'
+import { KIND_EMOJI } from '../components/EventTimeline'
 import { OgHeader } from '../components/OgHeader'
-import { SeriesChart, type Point, type Series } from '../components/SeriesChart'
-import { get, type TargetCount } from '../api'
-import { owner } from '../scope'
 
-const N = 5
+const N = 14
 
-/** Chrome-less 1200×630 stars-over-time render, screenshotted to public/og.jpg
- * (the og:image for every route — a single SPA index.html serves them all). */
+const KIND_VERB: Record<Event['kind'], string> = {
+  star: 'starred',
+  unstar: 'unstarred',
+  follow: 'followed',
+  unfollow: 'unfollowed',
+}
+
+/** Rough age ("3h", "2d", "8mo") of an ISO ts. */
+const age = (ts: string) => {
+  const h = (Date.now() - Date.parse(ts)) / 3_600_000
+  if (h < 1) return '<1h'
+  if (h < 48) return `${Math.round(h)}h`
+  const d = h / 24
+  if (d < 60) return `${Math.round(d)}d`
+  return `${Math.round(d / 30.44)}mo`
+}
+
+/** Chrome-less 1200×630 recent-feed snapshot — the homepage og:image
+ * (screenshotted to public/og.jpg). */
 export default function Og() {
   const { data } = useQuery({
-    queryKey: ['targets'],
-    queryFn: () => get<{ stars: TargetCount[]; follows: TargetCount[] }>('/api/targets'),
+    queryKey: ['og-events'],
+    queryFn: () => get<{ events: Event[] }>(`/api/events?limit=${N}`),
   })
-  const top = (data?.stars ?? []).slice(0, N)
-  const results = useQueries({
-    queries: top.map(t => ({
-      queryKey: ['series', t.target],
-      queryFn: () => get<{ series: Point[] }>(`/api/series?target=${encodeURIComponent(t.target)}`),
-      staleTime: 300_000,
-    })),
-  })
-  const series: Series[] = top.map((t, i) => ({
-    target: t.target,
-    slot: i,
-    label: t.target.split('/').pop()!,
-    owner: owner(t.target),
-    points: results[i].data?.series ?? [],
-  }))
-  const ready = top.length > 0 && results.every(r => r.data)
-
+  const events = data?.events ?? []
+  // Hold data-ready until every avatar has decoded — scrns keys its capture on
+  // the attribute, and half-loaded avatars leave blank gaps in the card
+  const [avisReady, setAvisReady] = useState(false)
+  useEffect(() => {
+    if (!events.length) return
+    Promise.allSettled(
+      events.filter(e => e.uid != null).map(e => {
+        const img = new Image()
+        img.src = `https://avatars.githubusercontent.com/u/${e.uid}?s=96`
+        return img.decode()
+      }),
+    ).then(() => setAvisReady(true))
+  }, [events.length])
   return (
-    <div className="og-page" data-ready={ready || undefined}>
+    <div className="og-page og-feed" data-ready={(events.length > 0 && avisReady) || undefined}>
       <OgHeader tagline="Open Athena + Marin — stars · follows · live feed · Slack" />
-      <div className="legend">
-        {series.map(s => (
-          <span key={s.target} className="li">
-            <span className="swatch" style={{ background: `var(--s${s.slot + 1})` }} />
-            {s.label}
-          </span>
+      <ul>
+        {events.map(e => (
+          <li key={e.id}>
+            <span className="emoji">{KIND_EMOJI[e.kind]}</span>
+            {e.uid != null && <img className="avi" src={`https://avatars.githubusercontent.com/u/${e.uid}?s=96`} alt="" />}
+            <b>{e.login}</b>
+            <span className="dim">{KIND_VERB[e.kind]}</span>
+            <span className="tgt">{e.target.split('/').pop()}</span>
+            <span className="dim age">{age(e.ts)}</span>
+          </li>
         ))}
-      </div>
-      <SeriesChart series={series} />
+      </ul>
     </div>
   )
 }

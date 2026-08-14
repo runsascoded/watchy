@@ -414,6 +414,20 @@ a { color: var(--link); text-decoration: none;
   .xhair { display: none; }
   .hb { display: none; }
 
+  // homepage card: recent feed, two columns
+  &.og-feed {
+    ul { list-style: none; margin: 1rem 0 0; padding: 0; display: grid;
+      grid-template-columns: 1fr 1fr; column-gap: 3rem; align-content: start; }
+    li { display: flex; align-items: center; gap: .55rem; font-size: 1.35rem;
+      padding: .55rem 0; border-bottom: 1px solid var(--border); white-space: nowrap;
+      overflow: hidden;
+      b { flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; }
+    }
+    li:nth-last-child(-n+2) { border-bottom: none; }
+    .avi { width: 36px; height: 36px; border-radius: 50%; flex: none; }
+    .age { margin-left: auto; padding-left: .6rem; }
+  }
+
   // /actors/og: a few rows × lots of cols suits the card AR
   &.og-actors {
     table { border-collapse: collapse; width: 100%; font-size: 1.35rem; }
