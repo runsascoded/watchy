@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { boolParam, stringParam, useUrlState } from 'use-prms'
+import { useActions } from 'use-kbd'
 import { get, type Event, type TargetCount } from '../api'
 import { Tooltip } from '../components/Tooltip'
 import { TargetLink } from '../target'
@@ -90,6 +91,25 @@ export default function Feed() {
     ...(targets?.stars ?? []).map(t => t.target),
     ...(targets?.follows ?? []).map(t => t.target),
   ]
+
+  // The filter dropdowns, as omnibar-searchable actions (only while Feed is mounted)
+  useActions({
+    'feed:kind:all': { label: 'All kinds', group: 'Feed filters', handler: () => setKind('') },
+    'feed:kind:star': { label: '⭐️ Stars only', group: 'Feed filters', handler: () => setKind('star') },
+    'feed:kind:unstar': { label: '💔 Unstars only', group: 'Feed filters', handler: () => setKind('unstar') },
+    'feed:kind:follow': { label: '🔔 Follows only', group: 'Feed filters', handler: () => setKind('follow') },
+    'feed:kind:unfollow': { label: '🔕 Unfollows only', group: 'Feed filters', handler: () => setKind('unfollow') },
+    'feed:group-by-repo': { label: 'Toggle group by repo', group: 'Feed filters', handler: () => setByRepo(!byRepo) },
+    'feed:target:all': { label: 'All targets', group: 'Feed filters', keywords: ['target'], handler: () => setTarget('') },
+    // One action per known target; omnibar-only (the modal would drown in them)
+    ...Object.fromEntries(targetOptions.map(t => [`feed:target:${t}`, {
+      label: `Target: ${t}`,
+      group: 'Feed filters',
+      keywords: ['target', ...t.split('/')],
+      hideFromModal: true,
+      handler: () => setTarget(t),
+    }])),
+  })
 
   const line = (e: Event, showTarget: boolean) => (
     <li key={e.id}>
