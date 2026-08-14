@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 
-const { max, min, floor, log10 } = Math
+const { max, min, floor, ceil, log10 } = Math
 
 export const W = 800
 export const H = 260
@@ -11,11 +11,12 @@ export interface Series { target: string; slot: number; label: string; owner: st
 
 const fmtDate = (t: number) => new Date(t).toISOString().slice(0, 10)
 
-function yTicks(yMax: number): number[] {
-  const mag = 10 ** floor(log10(max(1, yMax / 5)))
-  const step = ([1, 2, 5, 10].find(s => yMax / (s * mag) <= 5) ?? 10) * mag
+function yTicks(y0: number, y1: number): number[] {
+  const range = max(1, y1 - y0)
+  const mag = 10 ** floor(log10(max(1, range / 5)))
+  const step = ([1, 2, 5, 10].find(s => range / (s * mag) <= 5) ?? 10) * mag
   const ticks = []
-  for (let v = 0; v <= yMax; v += step) ticks.push(v)
+  for (let v = ceil(y0 / step) * step; v <= y1; v += step) ticks.push(v)
   return ticks
 }
 
@@ -26,17 +27,23 @@ export function SeriesChart({ series }: { series: Series[] }) {
   const svgRef = useRef<SVGSVGElement>(null)
   const loaded = series.filter(s => s.points.length)
 
-  const { x0, x1, yMax } = useMemo(() => {
+  const { x0, x1, y0, y1 } = useMemo(() => {
     const ts = loaded.flatMap(s => [Date.parse(s.points[0].ts), Date.parse(s.points[s.points.length - 1].ts)])
+    // Data-driven y-domain (not zero-based) so small recent deltas stay visible
+    const counts = loaded.flatMap(s => s.points.map(p => p.count))
+    const lo = counts.length ? min(...counts) : 0
+    const hi = counts.length ? max(...counts) : 1
+    const pad = max(1, (hi - lo) * 0.05)
     return {
       x0: ts.length ? min(...ts) : 0,
       x1: Date.now(),
-      yMax: max(1, ...loaded.flatMap(s => s.points.map(p => p.count))) * 1.05,
+      y0: max(0, lo - pad),
+      y1: hi + pad,
     }
   }, [loaded])
 
   const px = (t: number) => PAD.l + ((t - x0) / (x1 - x0)) * (W - PAD.l - PAD.r)
-  const py = (v: number) => H - PAD.b - (v / yMax) * (H - PAD.t - PAD.b)
+  const py = (v: number) => H - PAD.b - ((v - y0) / (y1 - y0)) * (H - PAD.t - PAD.b)
 
   function path(points: Point[]): string {
     let d = ''
@@ -91,7 +98,7 @@ export function SeriesChart({ series }: { series: Series[] }) {
   return (
     <div className="chart-wrap" ref={wrapRef}>
       <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
-        {yTicks(yMax).map(v => (
+        {yTicks(y0, y1).map(v => (
           <g key={v}>
             <line className="grid" x1={PAD.l} x2={W - PAD.r} y1={py(v)} y2={py(v)} />
             <text className="tick" x={PAD.l - 6} y={py(v) + 3} textAnchor="end">{v.toLocaleString()}</text>
