@@ -2,7 +2,7 @@
 
 [![PyPI version](https://badge.fury.io/py/watchy.svg)](https://badge.fury.io/py/watchy)
 
-Python library and CLI tool for fetching and tracking GitHub stargazers and followers.
+Track GitHub stars + follows: a Cloudflare Worker collector, live-feed web dashboard, optional Slack posting, and a Python library/CLI.
 
 See [ryan-williams/.watchy] for [an example daily GHA][GHA] that polls for stargazers and followers of a few orgs and repos.
 
