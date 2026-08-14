@@ -150,10 +150,17 @@ async function apiSeries(url: URL, env: Env): Promise<Response> {
   if (!target) return json({ error: 'target param required' }, 400)
   const isRepo = target.includes('/')
   const [cum, current] = await env.DB.batch([
+    // One point per timestamp (last cum wins): the backfill bootstrap lands
+    // every pre-existing star/follow as an event at one ts, which would
+    // otherwise render as a 0→N ramp at the left edge of the chart
     env.DB.prepare(
-      `SELECT ts, SUM(CASE WHEN kind IN ('star', 'follow') THEN 1 ELSE -1 END)
-         OVER (ORDER BY ts, id) AS cum
-       FROM events WHERE target = ? ORDER BY ts, id`,
+      `SELECT ts, cum FROM (
+         SELECT ts,
+           SUM(CASE WHEN kind IN ('star', 'follow') THEN 1 ELSE -1 END)
+             OVER (ORDER BY ts, id) AS cum,
+           ROW_NUMBER() OVER (PARTITION BY ts ORDER BY id DESC) AS rn
+         FROM events WHERE target = ?
+       ) WHERE rn = 1 ORDER BY ts`,
     ).bind(target),
     isRepo
       ? env.DB.prepare('SELECT COUNT(*) AS n FROM stars WHERE repo = ?').bind(target)
