@@ -15,5 +15,8 @@
     "typescript": "^5.8.0",
     "vitest": "^4.1.10",
     "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "@open-athena/auth": "github:Open-Athena/auth#f75498863413c2cb942727b5987a0c5e4fcc29f3"
   }
 }
