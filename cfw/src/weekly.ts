@@ -48,6 +48,10 @@ export interface WeeklyData {
 export interface WeeklyOpts {
   dashboardUrl?: string
   orgEmoji?: Record<string, string>
+  /** Week is over: append the closed footer (specs/weekly-rollup.md) */
+  closed?: boolean
+  /** Exclusive end of the week window, for the closed footer's range */
+  weekEnd?: string
 }
 
 const txt = (text: string) => ({ type: 'text', text })
@@ -78,7 +82,7 @@ function affil(a: WeekActor): { text: string; url: string | null } | null {
 /** Pure scoreboard builder: org-grouped deltas (org header + repo bullets when the
  * org itself saw follows; flat lines otherwise) + Notable actor bullets. */
 export function buildWeeklyOp(weekStart: string, data: WeeklyData, opts: WeeklyOpts = {}): { blocks: unknown[]; text: string } {
-  const { dashboardUrl, orgEmoji = {} } = opts
+  const { dashboardUrl, orgEmoji = {}, closed, weekEnd } = opts
   const base = new Map<string, number>()
   const cur = new Map<string, number>()
   for (const r of data.counts) {
@@ -154,6 +158,26 @@ export function buildWeeklyOp(weekStart: string, data: WeeklyData, opts: WeeklyO
     lines.push('Notable: ' + notable.map(a => a.login).join(' · '))
   }
 
+  // Closed footer: the range + net movement + dashboard links — everything the
+  // standalone summary carried that `before → after` alone can't say
+  if (closed) {
+    const net = { '⭐': [0, 0], '🔔': [0, 0] } as Record<string, [number, number]>
+    for (const e of data.events) {
+      const unit = e.kind === 'star' || e.kind === 'unstar' ? '⭐' : '🔔'
+      net[unit][e.kind === 'star' || e.kind === 'follow' ? 0 : 1] += 1
+    }
+    const parts = Object.entries(net)
+      .filter(([, [p, m]]) => p || m)
+      .map(([unit, [p, m]]) => `+${p}${m ? ` (−${m})` : ''} ${unit}`)
+    const head = `Closed · ${weekStart} → ${weekEnd ?? ''}${parts.length ? ` · ${parts.join(' · ')}` : ''}`
+    const footer: unknown[] = [txt(head)]
+    if (dashboardUrl) {
+      footer.push(txt(' · '), lnk(dashboardUrl, 'dashboard'), txt(' · '), lnk(`${dashboardUrl}/actors`, 'actors'))
+    }
+    elements.push(sect(...footer))
+    lines.push(head)
+  }
+
   return { blocks: [{ type: 'rich_text', elements }], text: lines.join('\n') }
 }
 
@@ -169,6 +193,12 @@ async function slackApi(env: Env, method: string, payload: Record<string, unknow
   const body = await resp.json<{ ok: boolean; error?: string }>()
   if (!body.ok) throw new Error(`${method}: ${body.error}`)
   return body
+}
+
+/** The weekly OP's ts for `weekStart`, or null if no event ever opened one. */
+export async function getWeeklyThread(env: Env, weekStart: string): Promise<string | null> {
+  const row = await env.DB.prepare('SELECT ts FROM weekly_threads WHERE week_start = ?').bind(weekStart).first<{ ts: string }>()
+  return row?.ts ?? null
 }
 
 /** Get (or create + record) the weekly OP for `weekStart`. */
@@ -190,7 +220,7 @@ export async function ensureWeeklyThread(env: Env, weekStart: string): Promise<s
 }
 
 /** Rebuild + chat.update the weekly OP scoreboard from D1. */
-export async function updateWeeklyOp(env: Env, weekStart: string, opTs: string): Promise<void> {
+export async function updateWeeklyOp(env: Env, weekStart: string, opTs: string, opts: { closed?: boolean } = {}): Promise<void> {
   const weekEnd = new Date(new Date(weekStart).getTime() + 7 * 86_400_000).toISOString().slice(0, 10)
   const { results: events } = await env.DB
     .prepare(
@@ -227,6 +257,17 @@ export async function updateWeeklyOp(env: Env, weekStart: string, opTs: string):
   const { blocks, text } = buildWeeklyOp(weekStart, { events, counts, actors, replyLink }, {
     dashboardUrl: env.DASHBOARD_URL,
     orgEmoji: env.SLACK_ORG_EMOJI,
+    closed: opts.closed,
+    weekEnd,
   })
   await slackApi(env, 'chat.update', { channel: env.SLACK_CHANNEL_ID, ts: opTs, blocks, text })
+}
+
+/** Stamp the week's OP as closed. Returns its ts, or null if the week never opened
+ * a thread (a quiet week — the caller then posts a standalone summary). */
+export async function finalizeWeeklyOp(env: Env, weekStart: string): Promise<string | null> {
+  const opTs = await getWeeklyThread(env, weekStart)
+  if (!opTs) return null
+  await updateWeeklyOp(env, weekStart, opTs, { closed: true })
+  return opTs
 }

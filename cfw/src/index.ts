@@ -2,12 +2,13 @@ import { collect, type CollectResult, type Env } from './collect'
 import { enrichActors, researchActors } from './actors'
 import { handleAuth } from './auth'
 import { authenticate, hasScope } from './gate'
-import { buildWeekStats, renderSummary, weeklySummary } from './summary'
+import { buildWeekStats, renderRollup, renderSummary, weeklySummary } from './summary'
 
 const WEEKLY_CRON = '0 14 * * 1' // keep in sync with wrangler.jsonc triggers.crons
 import { maybeAlert } from './alerts'
 import { sendPushover } from './pushover'
 import { syncSlack } from './slack'
+import { getWeeklyThread } from './weekly'
 
 async function runCollection(env: Env, fullSweep: boolean): Promise<CollectResult> {
   const startedAt = new Date().toISOString()
@@ -443,7 +444,14 @@ export default {
       const denied = keyGate(req, env)
       if (denied) return denied
       const stats = await buildWeekStats(env)
-      return json({ text: renderSummary(stats, env.DASHBOARD_URL), stats })
+      // Mirror the real routing: threaded rollup when the week opened a thread,
+      // standalone summary otherwise (specs/weekly-rollup.md)
+      const opTs = await getWeeklyThread(env, stats.weekStart)
+      return json({
+        text: opTs ? renderRollup(stats, env.DASHBOARD_URL) : renderSummary(stats, env.DASHBOARD_URL),
+        thread_ts: opTs,
+        stats,
+      })
     }
 
     if (path === '/check') {

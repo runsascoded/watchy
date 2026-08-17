@@ -79,6 +79,28 @@ describe('buildWeeklyOp', () => {
     ])
   })
 
+  it('appends a closed footer with the range, net movement, and dashboard links', () => {
+    const withChurn = { ...data, events: [...data.events, ev(4, '2026-08-12T07:00:00Z', 'unstar', 'marin-community/marin', 'quitter')] }
+    const { blocks, text } = buildWeeklyOp('2026-08-10', withChurn, {
+      dashboardUrl: 'https://gh.oa.dev',
+      closed: true,
+      weekEnd: '2026-08-17',
+    })
+    expect(text.split('\n').at(-1)).toBe('Closed · 2026-08-10 → 2026-08-17 · +2 (−1) ⭐ · +1 🔔')
+    expect((blocks[0] as any).elements.at(-1).elements).toEqual([
+      { type: 'text', text: 'Closed · 2026-08-10 → 2026-08-17 · +2 (−1) ⭐ · +1 🔔' },
+      { type: 'text', text: ' · ' },
+      { type: 'link', url: 'https://gh.oa.dev', text: 'dashboard' },
+      { type: 'text', text: ' · ' },
+      { type: 'link', url: 'https://gh.oa.dev/actors', text: 'actors' },
+    ])
+  })
+
+  it('omits the closed footer while the week is live', () => {
+    const { text } = buildWeeklyOp('2026-08-10', data, { dashboardUrl: 'https://gh.oa.dev' })
+    expect(text.split('\n').at(-1)).toBe('Notable: MzeroMiko')
+  })
+
   it('drops the city for self-locating institutions', () => {
     const d2 = {
       ...data,

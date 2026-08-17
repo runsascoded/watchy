@@ -1,4 +1,5 @@
 import type { Env } from './collect'
+import { finalizeWeeklyOp, weekLabel } from './weekly'
 
 export interface TargetDelta {
   target: string
@@ -21,6 +22,8 @@ export interface WeekStats {
   deltas: TargetDelta[]
   notables: Notable[]
   nEvents: number
+  /** Events in the preceding 7d window — the rollup's week-over-week anchor */
+  prevEvents: number
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
@@ -51,6 +54,30 @@ export function renderSummary(s: WeekStats, dashboardUrl?: string): string {
   return lines.join('\n')
 }
 
+/** Compact broadcast reply closing a week's live thread (specs/weekly-rollup.md).
+ * Deliberately *not* a restatement of the OP: headline movement, a week-over-week
+ * anchor, and bare notable logins — detail stays one screen up in the thread. */
+export function renderRollup(s: WeekStats, dashboardUrl?: string): string {
+  const lines = [`:calendar: *${weekLabel(s.weekStart)}* closed · ${s.weekStart} → ${s.weekEnd}`]
+  const net = { stars: [0, 0], follows: [0, 0] } as Record<TargetDelta['kind'], [number, number]>
+  for (const d of s.deltas) {
+    net[d.kind][0] += d.plus
+    net[d.kind][1] += d.minus
+  }
+  const moved = ([kind, [plus, minus]]: [string, [number, number]]) =>
+    `+${plus}${minus ? ` (−${minus})` : ''} ${kind === 'stars' ? ':star:' : ':bell:'}`
+  const parts = Object.entries(net).filter(([, [p, m]]) => p || m).map(moved)
+  const targets = `${s.deltas.length} target${s.deltas.length === 1 ? '' : 's'}`
+  lines.push(`${parts.join(' · ')} · ${targets} · ${s.nEvents} events (prev week ${s.prevEvents})`)
+  if (s.notables.length) {
+    lines.push(`:telescope: ${s.notables.slice(0, 3).map(n => `<https://github.com/${n.login}|${n.login}>`).join(' · ')}`)
+  }
+  if (dashboardUrl) {
+    lines.push(`:bar_chart: <${dashboardUrl}|dashboard> · <${dashboardUrl}/actors|actors>`)
+  }
+  return lines.join('\n')
+}
+
 /** Aggregate the trailing 7-day window for SLACK_MATCHES targets. */
 export async function buildWeekStats(env: Env, now = new Date()): Promise<WeekStats> {
   const end = now.toISOString().slice(0, 10)
@@ -59,7 +86,9 @@ export async function buildWeekStats(env: Env, now = new Date()): Promise<WeekSt
   const where = matches.map(() => '(e.target = ? OR e.target LIKE ?)').join(' OR ')
   const binds = matches.flatMap(m => [m, `${m}/%`])
 
-  const [deltaRows, notableRows] = await env.DB.batch([
+  const prevStart = new Date(now.getTime() - 14 * 86_400_000).toISOString().slice(0, 10)
+
+  const [deltaRows, notableRows, prevRow] = await env.DB.batch([
     env.DB.prepare(
       `SELECT e.target, e.kind, COUNT(*) n FROM events e
        WHERE e.ts >= ? AND e.ts < ? AND (${where})
@@ -77,6 +106,9 @@ export async function buildWeekStats(env: Env, now = new Date()): Promise<WeekSt
          AND e.kind IN ('star', 'follow') AND e.ts >= ? AND e.ts < ? AND (${where}))
        ORDER BY a.followers DESC LIMIT 5`,
     ).bind(`${start}T00:00:00Z`, `${end}T00:00:00Z`, ...binds),
+    env.DB.prepare(
+      `SELECT COUNT(*) n FROM events e WHERE e.ts >= ? AND e.ts < ? AND (${where})`,
+    ).bind(`${prevStart}T00:00:00Z`, `${start}T00:00:00Z`, ...binds),
   ])
 
   const byTarget = new Map<string, TargetDelta>()
@@ -96,21 +128,38 @@ export async function buildWeekStats(env: Env, now = new Date()): Promise<WeekSt
     d.total = cur?.n ?? 0
   }
   const deltas = [...byTarget.values()].sort((a, b) => b.plus - a.plus)
-  return { weekStart: start, weekEnd: end, deltas, notables: notableRows.results as Notable[], nEvents }
+  const prevEvents = (prevRow.results[0] as { n: number } | undefined)?.n ?? 0
+  return { weekStart: start, weekEnd: end, deltas, notables: notableRows.results as Notable[], nEvents, prevEvents }
 }
 
-/** Compose, post to Slack (if configured), and record the weekly summary. Idempotent per week. */
+/** Close out the week: stamp its live thread as closed and post the rollup as a
+ * broadcast reply under it; fall back to a standalone post when the week never
+ * opened a thread (specs/weekly-rollup.md). Idempotent per week. */
 export async function weeklySummary(env: Env): Promise<string | null> {
   const stats = await buildWeekStats(env)
   const dup = await env.DB.prepare('SELECT id FROM summaries WHERE week_start = ?').bind(stats.weekStart).first()
   if (dup) return null
-  const text = renderSummary(stats, env.DASHBOARD_URL)
+  const slack = env.SLACK_BOT_TOKEN && env.SLACK_CHANNEL_ID
+  // A finalize failure must not cost us the rollup — fall back to standalone
+  const opTs = slack
+    ? await finalizeWeeklyOp(env, stats.weekStart).catch(e => {
+      console.error('finalizeWeeklyOp failed:', e)
+      return null
+    })
+    : null
+  const text = opTs ? renderRollup(stats, env.DASHBOARD_URL) : renderSummary(stats, env.DASHBOARD_URL)
   let slackTs: string | null = null
-  if (env.SLACK_BOT_TOKEN && env.SLACK_CHANNEL_ID) {
+  if (slack) {
     const resp = await fetch('https://slack.com/api/chat.postMessage', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({ channel: env.SLACK_CHANNEL_ID, text, unfurl_links: false, unfurl_media: false }),
+      body: JSON.stringify({
+        channel: env.SLACK_CHANNEL_ID,
+        text,
+        ...(opTs ? { thread_ts: opTs, reply_broadcast: true } : {}),
+        unfurl_links: false,
+        unfurl_media: false,
+      }),
     })
     const body = await resp.json<{ ok: boolean; ts?: string; error?: string }>()
     if (body.ok) slackTs = body.ts ?? null
