@@ -41,6 +41,14 @@ Nothing live to preserve → drop and recreate. Anyone holding an old watchy lin
 
 **Rollback:** the old worker version stays deployable — no data to lose, since the only live rows are revoked grants.
 
+## Status (2026-08-16)
+
+Steps 1–4 **done and deployed** on both instances; migrations `0014`–`0019` applied to both D1s.
+
+Verified without a login: `rw` reports auth-unconfigured (`/api/auth/whoami` 503, gated 401, public 200); `oa` reports configured (`whoami` 401 not 503) and serves the *package's* route payloads — `POST /auth/exchange` with a bad token returns `{"error":"invalid link","reason":"bad-token"}` (watchy's old handler had no `reason`), and `POST /auth/request` (an endpoint watchy never had) validates email. The sign-in wall renders with watchy's copy and class names. Session-format compatibility was checked at the source, not assumed: the package's claims (`{v:1,sub,exp}`, same b64url + HMAC-SHA256 over the body, same `e:`/`g:` prefixes) are byte-identical to what watchy minted, so existing SSO cookies verify unchanged.
+
+**Left to verify by hand** (needs a CF Access login): complete an SSO bounce, then mint → open → revoke a link on `/access` to confirm the ported admin page against live data. Old *grant*-backed cookies are expected to fail — those grants were revoked and their table is gone.
+
 ## Deferred
 
 - Moving the gate into Pages Functions (kills the proxy hop) — separate change, separate risk.
