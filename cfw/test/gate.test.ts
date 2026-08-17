@@ -1,44 +1,87 @@
+// The crypto/session primitives live in `@open-athena/auth` now and are tested
+// there; what's watchy-specific — and what can regress — is the *configuration*:
+// which SSO identities are let in, what scopes they get, and the cookie name that
+// keeps existing sessions alive across the swap (specs/auth-adoption.md).
 import { describe, expect, it } from 'vitest'
-import { generateToken, hashToken, signSession, verifySession } from '../src/gate'
+import { memoryAudit, memoryGrantStore, memoryRequestStore } from '@open-athena/auth/testing'
+import { COOKIE, gateFor, hasScope, type GateEnv } from '../src/gate'
 
-const SECRET = 'test-secret-0123456789abcdef'
-const NOW = Date.parse('2026-08-08T00:00:00Z')
+const ENV: GateEnv = {
+  DB: null as unknown as D1Database, // unused: stores are injected below
+  SESSION_SECRET: 'test-secret-0123456789abcdef',
+  ADMIN_EMAILS: ['ryan.williams@openathena.ai'],
+  AUTH_DOMAINS: ['openathena.ai'],
+}
 
-describe('session sign/verify', () => {
-  it('round-trips a subject', async () => {
-    const cookie = await signSession('e:a@openathena.ai', SECRET, NOW)
-    expect(await verifySession(cookie, SECRET, NOW)).toBe('e:a@openathena.ai')
+const gate = (env: GateEnv = ENV) =>
+  gateFor(env, { store: memoryGrantStore(), requests: memoryRequestStore(), audit: memoryAudit() })
+
+const REQ = new Request('https://gh.oa.dev/api/actors')
+
+/** Sign in, then read back what an authenticated request resolves to. */
+async function signedIn(email: string, env: GateEnv = ENV) {
+  const g = gate(env)!
+  const res = await g.signIn(email, REQ)
+  if (!res) return null
+  const cookie = res.cookie.split(';')[0]
+  return g.authenticate(new Request(REQ.url, { headers: { Cookie: cookie } }))
+}
+
+describe('gateFor', () => {
+  it('is null without a session secret — the public flavor runs open', () => {
+    expect(gate({ ...ENV, SESSION_SECRET: undefined })).toBe(null)
   })
 
-  it('rejects a tampered payload', async () => {
-    const cookie = await signSession('e:a@openathena.ai', SECRET, NOW)
-    const [body, sig] = cookie.split('.')
-    const forged = btoa(JSON.stringify({ v: 1, sub: 'e:evil@example.com', exp: 4102444800 }))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-    expect(await verifySession(`${forged}.${sig}`, SECRET, NOW)).toBe(null)
-    expect(await verifySession(`${body}.AAAA${sig!.slice(4)}`, SECRET, NOW)).toBe(null)
+  it('keeps the pre-package cookie name, so existing SSO sessions survive', () => {
+    expect([COOKIE, gate()!.cookieName]).toEqual(['watchy_auth', 'watchy_auth'])
   })
 
-  it('rejects the wrong secret', async () => {
-    const cookie = await signSession('g:7', SECRET, NOW)
-    expect(await verifySession(cookie, 'other-secret-0123456789abcdef', NOW)).toBe(null)
+  it('gives a configured-domain identity `internal`, not admin', async () => {
+    const auth = await signedIn('someone@openathena.ai')
+    expect(auth && { kind: auth.kind, scopes: auth.scopes, admin: auth.admin }).toEqual({
+      kind: 'sso',
+      scopes: ['internal'],
+      admin: false,
+    })
+    expect(hasScope(auth!, 'internal')).toBe(true)
   })
 
-  it('rejects an expired session', async () => {
-    const cookie = await signSession('g:7', SECRET, NOW)
-    expect(await verifySession(cookie, SECRET, NOW + 31 * 24 * 3600 * 1000)).toBe(null)
+  it('gives an admin the wildcard scope', async () => {
+    const auth = await signedIn('ryan.williams@openathena.ai')
+    expect(auth && { kind: auth.kind, scopes: auth.scopes, admin: auth.admin }).toEqual({
+      kind: 'sso',
+      scopes: ['*'],
+      admin: true,
+    })
+    expect(hasScope(auth!, 'internal')).toBe(true)
   })
 
-  it('rejects malformed values', async () => {
-    expect(await verifySession('no-dot-here', SECRET, NOW)).toBe(null)
+  it('refuses an identity outside the configured domains', async () => {
+    expect(await signedIn('stranger@example.com')).toBe(null)
+  })
+
+  it('admits admins even with no domains configured — a misconfig cannot lock them out', async () => {
+    const noDomains = { ...ENV, AUTH_DOMAINS: undefined }
+    expect([
+      (await signedIn('ryan.williams@openathena.ai', noDomains))?.admin,
+      await signedIn('someone@openathena.ai', noDomains),
+    ]).toEqual([true, null])
   })
 })
 
-describe('tokens', () => {
-  it('generates 24-byte urlsafe tokens with stable hashes', async () => {
-    const t = generateToken()
-    expect(t).toMatch(/^[A-Za-z0-9_-]{32}$/)
-    expect(await hashToken(t)).toBe(await hashToken(t))
-    expect(await hashToken(t)).not.toBe(await hashToken(generateToken()))
+describe('share links', () => {
+  it('mints a redeemable link, and revoking it kills the session it minted', async () => {
+    const g = gate()!
+    const { grant, token } = await g.mint({ name: 'Bob Smith (donor)', scopes: ['internal'], createdBy: 'ryan.williams@openathena.ai' })
+    const redeemed = await g.redeem(token, REQ)
+    expect(redeemed.ok).toBe(true)
+
+    const cookie = (redeemed as { cookie: string }).cookie.split(';')[0]
+    const asBob = () => g.authenticate(new Request(REQ.url, { headers: { Cookie: cookie } }))
+    const before = await asBob()
+    expect(before && [before.kind, hasScope(before, 'internal')]).toEqual(['grant', true])
+
+    await g.revoke(grant.id)
+    expect(await asBob()).toBe(null) // re-joined per request, so revocation is instant
   })
 })
