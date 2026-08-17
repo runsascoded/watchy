@@ -1,5 +1,5 @@
 import type { Env } from './collect'
-import { finalizeWeeklyOp, weekLabel } from './weekly'
+import { finalizeWeeklyOp, weekLabel, weekStartOf } from './weekly'
 
 export interface TargetDelta {
   target: string
@@ -78,15 +78,19 @@ export function renderRollup(s: WeekStats, dashboardUrl?: string): string {
   return lines.join('\n')
 }
 
-/** Aggregate the trailing 7-day window for SLACK_MATCHES targets. */
+/** Aggregate the most recently *completed* ISO week for SLACK_MATCHES targets.
+ * Window is `[Monday, next Monday)` — the same key `weekly_threads` uses, so the
+ * rollup can find its live thread. Deriving the week from the clock (rather than
+ * from "7 days back from now") makes the job day-agnostic: it runs daily and
+ * short-circuits on the `summaries` dup-check until a new week has closed. */
 export async function buildWeekStats(env: Env, now = new Date()): Promise<WeekStats> {
-  const end = now.toISOString().slice(0, 10)
-  const start = new Date(now.getTime() - 7 * 86_400_000).toISOString().slice(0, 10)
+  const end = weekStartOf(now.toISOString())
+  const start = new Date(new Date(end).getTime() - 7 * 86_400_000).toISOString().slice(0, 10)
   const matches = env.SLACK_MATCHES ?? []
   const where = matches.map(() => '(e.target = ? OR e.target LIKE ?)').join(' OR ')
   const binds = matches.flatMap(m => [m, `${m}/%`])
 
-  const prevStart = new Date(now.getTime() - 14 * 86_400_000).toISOString().slice(0, 10)
+  const prevStart = new Date(new Date(start).getTime() - 7 * 86_400_000).toISOString().slice(0, 10)
 
   const [deltaRows, notableRows, prevRow] = await env.DB.batch([
     env.DB.prepare(
