@@ -38,6 +38,9 @@
     // Auth gate (secrets, via oa-wrangler.sh: SESSION_SECRET) + actor research
     // (secret: ANTHROPIC_API_KEY)
     "ADMIN_EMAILS": ["ryan.williams@openathena.ai"],
+    // SSO identities from these domains get the `internal` scope; admins above
+    // always get `*`, so a mistake here can't lock the operator out
+    "AUTH_DOMAINS": ["openathena.ai"],
     "DASHBOARD_URL": "https://gh.oa.dev",
     "RESEARCH_MIN_FOLLOWERS": "100",
     // Slack posting (secret: SLACK_BOT_TOKEN)
