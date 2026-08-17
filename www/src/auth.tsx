@@ -19,7 +19,20 @@ export function ssoUrl(next: string): string {
 export { exchangeKeyParam } from '@open-athena/auth/react'
 
 export function WhoamiChip() {
-  return <PkgWhoamiChip whoami={useWhoami().whoami} classNames={{ root: 'whoami', name: 'dim', button: 'linkish' }} />
+  return (
+    <PkgWhoamiChip
+      whoami={useWhoami().whoami}
+      // The package's post-logout `useForgetWhoami` calls TanStack's
+      // `removeQueries`, which destroys the cache entry and notifies *cache*
+      // subscribers — but a QueryObserver subscribes to the query, so nothing
+      // re-renders and the page keeps showing the identity you just dropped
+      // (upstream: specs/auth-upstream-followups.md §1). Reloading also drops
+      // every already-fetched private response from memory, which is what
+      // signing out should mean anyway.
+      onSignedOut={() => location.reload()}
+      classNames={{ root: 'whoami', name: 'dim', button: 'linkish' }}
+    />
+  )
 }
 
 /** Shown in place of gated content when the API says 401. */
