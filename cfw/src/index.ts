@@ -4,7 +4,7 @@ import { handleAuth } from './auth'
 import { authenticate, hasScope } from './gate'
 import { buildWeekStats, renderRollup, renderSummary, weeklySummary } from './summary'
 
-const WEEKLY_CRON = '0 14 * * 1' // keep in sync with wrangler.jsonc triggers.crons
+const WEEKLY_CRON = '0 14 * * *' // keep in sync with wrangler.jsonc triggers.crons; day-agnostic by design (specs/weekly-rollup.md)
 import { maybeAlert } from './alerts'
 import { sendPushover } from './pushover'
 import { syncSlack } from './slack'

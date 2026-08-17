@@ -10,7 +10,7 @@
   "triggers": {
     // */5 = collect + slack + enrich (tight enough that Slack post ts ≈ action ts);
     // Monday 14:00 UTC = weekly summary (WEEKLY_CRON in index.ts)
-    "crons": ["*/5 * * * *", "0 14 * * 1"]
+    "crons": ["*/5 * * * *", "0 14 * * *"]
   },
   "d1_databases": [
     {

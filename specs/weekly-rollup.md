@@ -42,7 +42,18 @@ Notable actors appear as **bare linked logins** (cap 3) — the follower counts,
 
 If no OP exists for the closing week (no events at all → `ensureWeeklyThread` never fired), there's no thread to reply into, so the existing `renderSummary` "Quiet week" post goes out top-level as before. `renderSummary` is kept for exactly this path (and `/summary-preview`).
 
-### 4. New-thread timing is unchanged (deliberately)
+### 4. Week keys must agree — and didn't
+
+Found while verifying against live D1, before this shipped: the two mechanisms keyed weeks **differently**, so the thread lookup could never have matched.
+
+- `weekly_threads.week_start` comes from `weekStartOf` — always a **Monday** (UTC).
+- `buildWeekStats` used a *trailing 7-day* window ending "today", so its `week_start` was whatever day the cron happened to fire.
+
+And the cron fired **Sundays**, not Mondays: both existing `summaries` rows (`2026-08-09`, `2026-08-02`, each posted 14:00:51Z) are Sundays, despite the trigger reading `0 14 * * 1`. Whatever the cause — CF's day-of-week indexing is the suspect — the schedule expression is not something to build correctness on.
+
+So the window is now derived **from the clock, not the schedule**: `weekEnd = weekStartOf(now)`, `weekStart = weekEnd − 7d` — i.e. *the most recently completed ISO week*, whose key matches `weekly_threads` by construction. The cron becomes **daily** (`0 14 * * *`): the first run after a week boundary closes it, and every later run that day short-circuits on the `summaries` dup-check. That also makes the job self-healing — a missed or failed run just closes the week a day late instead of never.
+
+### 5. New-thread timing is unchanged (deliberately)
 
 A new "Week of M/D" OP begins **whenever the first event of that ISO week arrives** — 00:05 Monday in a busy week, Thursday in a quiet one. Pre-creating on a schedule would leave empty OPs in quiet weeks that then need deleting, so laziness stays.
 

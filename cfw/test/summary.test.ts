@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderRollup, renderSummary, weeklySummary, type WeekStats } from '../src/summary'
+import { buildWeekStats, renderRollup, renderSummary, weeklySummary, type WeekStats } from '../src/summary'
 import type { Env } from '../src/collect'
 
 const BASE: WeekStats = {
@@ -111,7 +111,7 @@ describe('weeklySummary routing', () => {
   const realFetch = globalThis.fetch
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-16T14:00:00Z')) // the Monday cron, closing 8/9–8/16
+    vi.setSystemTime(new Date('2026-08-17T14:00:00Z')) // first daily run after the 8/10 week closed
   })
   afterEach(() => {
     vi.useRealTimers()
@@ -130,7 +130,7 @@ describe('weeklySummary routing', () => {
       unfurl_media: false,
     })
     expect(text.split('\n')).toEqual([
-      ':calendar: *Week of 8/9* closed · 2026-08-09 → 2026-08-16',
+      ':calendar: *Week of 8/10* closed · 2026-08-10 → 2026-08-17',
       '+18 :star: · 1 target · 18 events (prev week 13)',
       ':bar_chart: <https://gh.oa.dev|dashboard> · <https://gh.oa.dev/actors|actors>',
     ])
@@ -141,6 +141,30 @@ describe('weeklySummary routing', () => {
     await weeklySummary(env)
     const [{ text, ...rest }] = posts
     expect(rest).toEqual({ channel: 'C1', unfurl_links: false, unfurl_media: false })
-    expect(text.split('\n')[0]).toBe(':calendar: *Weekly watch summary* · 2026-08-09 → 2026-08-16')
+    expect(text.split('\n')[0]).toBe(':calendar: *Weekly watch summary* · 2026-08-10 → 2026-08-17')
+  })
+})
+
+describe('buildWeekStats window', () => {
+  const realFetch = globalThis.fetch
+  afterEach(() => { globalThis.fetch = realFetch })
+
+  // The job runs daily and closes the most recently *completed* ISO week, so its
+  // key always matches weekly_threads.week_start (a Monday) whatever day it fires
+  it('always spans Monday → Monday, whatever day it runs', async () => {
+    const { env } = fakeEnv(null)
+    const at = async (iso: string) => {
+      const s = await buildWeekStats(env, new Date(iso))
+      return [s.weekStart, s.weekEnd]
+    }
+    expect([
+      await at('2026-08-17T14:00:00Z'), // Monday, just after the 8/10 week closed
+      await at('2026-08-19T14:00:00Z'), // Wednesday — same week still the last closed
+      await at('2026-08-16T14:00:00Z'), // Sunday — 8/10 is still running, so close 8/3
+    ]).toEqual([
+      ['2026-08-10', '2026-08-17'],
+      ['2026-08-10', '2026-08-17'],
+      ['2026-08-03', '2026-08-10'],
+    ])
   })
 })
