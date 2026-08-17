@@ -115,7 +115,10 @@ a { color: var(--link); text-decoration: none;
     }
   }
   tr:last-child td { border-bottom: none; }
-  tr.dim td { opacity: .55; }
+  // De-emphasize revoked/expired rows by color, not opacity: at .82rem, .55
+  // opacity dropped #e4e4e4 to ~#888 (~5:1 on --bg), which reads as unreadable
+  // grey-on-black. --dim is ~6.3:1 and still clearly recessive vs --fg.
+  tr.dim td { color: var(--dim); }
 }
 
 .dim { color: var(--dim); }
