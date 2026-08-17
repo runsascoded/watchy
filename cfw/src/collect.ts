@@ -21,6 +21,8 @@ export interface Env {
   SLACK_WORKSPACE_URL?: string
   SESSION_SECRET?: string
   ADMIN_EMAILS?: string[]
+  /** SSO domains granted `internal`; unset = admins only (specs/auth-adoption.md) */
+  AUTH_DOMAINS?: string[]
   DASHBOARD_URL?: string
   ANTHROPIC_API_KEY?: string
   RESEARCH_MIN_FOLLOWERS?: string
