@@ -47,7 +47,30 @@ Steps 1–4 **done and deployed** on both instances; migrations `0014`–`0019` 
 
 Verified without a login: `rw` reports auth-unconfigured (`/api/auth/whoami` 503, gated 401, public 200); `oa` reports configured (`whoami` 401 not 503) and serves the *package's* route payloads — `POST /auth/exchange` with a bad token returns `{"error":"invalid link","reason":"bad-token"}` (watchy's old handler had no `reason`), and `POST /auth/request` (an endpoint watchy never had) validates email. The sign-in wall renders with watchy's copy and class names. Session-format compatibility was checked at the source, not assumed: the package's claims (`{v:1,sub,exp}`, same b64url + HMAC-SHA256 over the body, same `e:`/`g:` prefixes) are byte-identical to what watchy minted, so existing SSO cookies verify unchanged.
 
-**Left to verify by hand** (needs a CF Access login): complete an SSO bounce, then mint → open → revoke a link on `/access` to confirm the ported admin page against live data. Old *grant*-backed cookies are expected to fail — those grants were revoked and their table is gone.
+## Verified end-to-end (2026-08-17, `oa`)
+
+Done in the **OA** Chrome profile (an earlier attempt landed in the RAC profile, whose CF Access session is a different identity — see global CLAUDE.md, "Picking the right Chrome profile", and `chrome-profiles`).
+
+`/access` loaded **already signed in** as ryan.williams@openathena.ai: no SSO bounce, no re-login. That is the session-format compatibility claim proven live — a cookie minted by the *old* hand-rolled code verified against the package's gate.
+
+Then, against live data:
+
+| Step | Result |
+|---|---|
+| mint (`name`, TTL 1d) | grant row: `internal`, expires +1d, `redeems` 0, active; token shown once |
+| `POST /api/auth/exchange` | `{kind:'grant', name, scopes:['internal'], admin:false, expiresAt}` + `watchy_auth` cookie (HttpOnly/Secure/SameSite=Lax/30d) |
+| gated read as grant | `/api/actors` 200 |
+| admin read as grant | `/api/auth/grants` **403** — grants can't self-administer |
+| admin table after redeem | `redeems` 1, `last used` 13:59Z |
+| revoke (with confirm step) | row gone from table; grant cookie → 401 on both whoami and gated reads, instantly |
+| `access_log` | `redeem` → `revoke` → `deny(reason=revoked)` ×2, all carrying `grant_id`/`session_sub` |
+
+Redeem was driven by curl rather than the browser, deliberately: opening the link in the same profile would have overwritten the admin's SSO cookie with the grant cookie about to be revoked, locking the page mid-test.
+
+**Two findings, one fixed:**
+
+- **Fixed.** The package's `GET /grants` filters `revoked_at IS NULL` unless `?all=1`; `Access.tsx` didn't pass it, so revoked grants vanished from the table and its `status() === 'revoked'` dim-row branch was dead code. watchy's pre-package page listed them. Now passes `all=1` — the row persists in D1 either way (`revoked=1`), this only controls whether the operator can see it.
+- **Open (upstream).** `mint` writes no `access_log` row — the log starts at `redeem`. Who minted a link is recoverable from `grants.created_by`, but it's absent from the audit timeline, which is where you'd look. Worth raising on `Open-Athena/auth`.
 
 ## Deferred
 
