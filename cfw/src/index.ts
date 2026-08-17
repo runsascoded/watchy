@@ -1,7 +1,7 @@
 import { collect, type CollectResult, type Env } from './collect'
 import { enrichActors, researchActors } from './actors'
 import { handleAuth } from './auth'
-import { authenticate, hasScope } from './gate'
+import { gateFor, hasScope } from './gate'
 import { buildWeekStats, renderRollup, renderSummary, weeklySummary } from './summary'
 
 const WEEKLY_CRON = '0 14 * * *' // keep in sync with wrangler.jsonc triggers.crons; day-agnostic by design (specs/weekly-rollup.md)
@@ -400,13 +400,14 @@ export default {
     const url = new URL(req.url)
     const path = url.pathname
 
-    if (path.startsWith('/api/auth/')) return handleAuth(req, url, env)
+    if (path.startsWith('/api/auth/')) return handleAuth(req, env)
 
     if (path === '/api/events') return apiEvents(url, env)
     if (path === '/api/targets') return apiTargets(env)
     if (path === '/api/counts') return apiCounts(url, env)
     if (path === '/api/actors' || path === '/api/actors/summary') {
-      const auth = await authenticate(req, env)
+      const gate = gateFor(env)
+      const auth = gate && await gate.authenticate(req)
       if (!auth || !hasScope(auth, 'internal')) return json({ error: 'unauthenticated' }, 401)
       return path === '/api/actors' ? apiActors(url, env) : apiActorsSummary(url, env)
     }

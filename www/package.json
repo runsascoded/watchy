@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.20",
+    "@open-athena/auth": "github:Open-Athena/auth#f75498863413c2cb942727b5987a0c5e4fcc29f3",
     "@tanstack/react-query": "^5.60.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",

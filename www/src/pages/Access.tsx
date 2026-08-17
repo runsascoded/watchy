@@ -4,32 +4,25 @@ import { Tooltip } from '../components/Tooltip'
 import { ApiError, get, post } from '../api'
 import { SignInPanel, useWhoami } from '../auth'
 
-interface GrantRow {
-  id: number
-  label: string
-  email: string | null
-  scopes: string
-  created_by: string
-  created_at: string
-  expires_at: string | null
-  revoked_at: string | null
-  last_used_at: string | null
-  use_count: number
-}
+// Shapes come from `@open-athena/auth`: string ids, epoch-second timestamps,
+// `name` (was `label`), and `redeems` — *sessions minted*, not requests served
+// (specs/auth-adoption.md).
+import type { Grant } from '@open-athena/auth'
 
 interface Minted {
-  id: number
+  grant: Grant
   token: string
-  label: string
-  email: string | null
-  expires_at: string | null
 }
+
+const day = (s: number | null) => (s == null ? '—' : new Date(s * 1000).toISOString().slice(0, 10))
+const minute = (s: number | null) => (s == null ? '—' : new Date(s * 1000).toISOString().slice(0, 16).replace('T', ' ') + 'Z')
 
 const linkFor = (token: string) => `${location.origin}/actors?key=${token}`
 
-function status(g: GrantRow): string {
-  if (g.revoked_at) return 'revoked'
-  if (g.expires_at && g.expires_at < new Date().toISOString()) return 'expired'
+function status(g: Grant): string {
+  if (g.revokedAt) return 'revoked'
+  if (g.expiresAt && g.expiresAt * 1000 < Date.now()) return 'expired'
+  if (g.maxRedeems != null && g.redeems >= g.maxRedeems) return 'exhausted'
   return 'active'
 }
 
@@ -41,20 +34,21 @@ export default function Access() {
   const [email, setEmail] = useState('')
   const [ttl, setTtl] = useState('')
   const [minted, setMinted] = useState<Minted | null>(null)
-  const [confirming, setConfirming] = useState<number | null>(null)
+  const [confirming, setConfirming] = useState<string | null>(null)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['grants'],
-    queryFn: () => get<{ grants: GrantRow[] }>('/api/auth/grants'),
+    queryFn: () => get<{ grants: Grant[] }>('/api/auth/grants'),
     enabled: whoami?.admin === true,
     retry: false,
   })
   const mint = useMutation({
     mutationFn: () =>
       post<Minted>('/api/auth/grants', {
-        label: label.trim(),
+        name: label.trim(),
+        scopes: ['internal'],
         ...(email.trim() ? { email: email.trim() } : {}),
-        ...(ttl.trim() ? { ttl_days: parseInt(ttl, 10) } : {}),
+        ...(ttl.trim() ? { expiresInS: parseInt(ttl, 10) * 86_400 } : {}),
       }),
     onSuccess: m => {
       setMinted(m)
@@ -63,13 +57,13 @@ export default function Access() {
     },
   })
   const revoke = useMutation({
-    mutationFn: (id: number) => post(`/api/auth/grants?id=${id}`, undefined, 'DELETE'),
+    mutationFn: (id: string) => post(`/api/auth/grants/${id}/revoke`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['grants'] }),
   })
 
   if (whoami === undefined) return <p className="dim">loading…</p>
   if (whoami === null) return <SignInPanel next="/access" />
-  if (!whoami.admin) return <p className="error">Admin only ({whoami.email ?? whoami.label} is not an admin).</p>
+  if (!whoami.admin) return <p className="error">Admin only ({whoami.email ?? 'this link'} is not an admin).</p>
   if (isLoading) return <p className="dim">loading…</p>
   if (error) return <p className="error">{error instanceof ApiError ? `error ${error.status}` : String(error)}</p>
 
@@ -91,14 +85,14 @@ export default function Access() {
       </form>
       {minted && (
         <div className="minted">
-          <b>{minted.label}</b> — copy this link now; it won't be shown again:
+          <b>{minted.grant.name}</b> — copy this link now; it won't be shown again:
           <div className="token-row">
             <code>{linkFor(minted.token)}</code>
             <button onClick={() => navigator.clipboard.writeText(linkFor(minted.token))}>copy</button>
-            {minted.email && (
+            {minted.grant.email && (
               <a
                 className="btn"
-                href={`mailto:${minted.email}?subject=${encodeURIComponent('watchy access link')}&body=${encodeURIComponent(`Here's your access link for gh.oa.dev:\n\n${linkFor(minted.token)}\n\nOpening it signs your browser in automatically.`)}`}
+                href={`mailto:${minted.grant.email}?subject=${encodeURIComponent('watchy access link')}&body=${encodeURIComponent(`Here's your access link for gh.oa.dev:\n\n${linkFor(minted.token)}\n\nOpening it signs your browser in automatically.`)}`}
               >
                 email it
               </a>
@@ -112,19 +106,19 @@ export default function Access() {
           <thead>
             <tr>
               <th>label</th><th>email</th><th>scopes</th><th>created</th><th>expires</th>
-              <th className="num">uses</th><th>last used</th><th>status</th><th></th>
+              <th className="num">redeems</th><th>last used</th><th>status</th><th></th>
             </tr>
           </thead>
           <tbody>
             {(data?.grants ?? []).map(g => (
               <tr key={g.id} className={status(g) === 'active' ? '' : 'dim'}>
-                <td><b>{g.label}</b></td>
+                <td><b>{g.name}</b></td>
                 <td>{g.email}</td>
-                <td>{g.scopes}</td>
-                <td><Tooltip tip={`by ${g.created_by}`}><span>{g.created_at.slice(0, 10)}</span></Tooltip></td>
-                <td>{g.expires_at?.slice(0, 10) ?? '—'}</td>
-                <td className="num">{g.use_count}</td>
-                <td>{g.last_used_at ? g.last_used_at.slice(0, 16).replace('T', ' ') + 'Z' : '—'}</td>
+                <td>{g.scopes.join(' ')}</td>
+                <td><Tooltip tip={`by ${g.createdBy}`}><span>{day(g.createdAt)}</span></Tooltip></td>
+                <td>{day(g.expiresAt)}</td>
+                <td className="num">{g.redeems}{g.maxRedeems != null ? ` / ${g.maxRedeems}` : ''}</td>
+                <td>{minute(g.lastUsedAt)}</td>
                 <td>{status(g)}</td>
                 <td>
                   {status(g) === 'active' && (confirming === g.id ? (
