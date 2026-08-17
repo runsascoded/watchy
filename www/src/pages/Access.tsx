@@ -38,7 +38,10 @@ export default function Access() {
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['grants'],
-    queryFn: () => get<{ grants: Grant[] }>('/api/auth/grants'),
+    // `all=1` keeps revoked grants in the table (dimmed, per status() below) — the
+    // package hides them by default, but a revoked link is exactly what you want to
+    // see when someone asks "did you turn that off?"
+    queryFn: () => get<{ grants: Grant[] }>('/api/auth/grants?all=1'),
     enabled: whoami?.admin === true,
     retry: false,
   })
