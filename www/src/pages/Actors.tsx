@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { boolParam, intParam, stringParam, useUrlState } from 'use-prms'
-import { ApiError, API_BASE, get } from '../api'
+import { ApiError, API_BASE, get, type Actor, type ActorEvent } from '../api'
 import { exchangeKeyParam, SignInPanel } from '../auth'
+import { ActorCard } from '../components/ActorCard'
 import { Tooltip } from '../components/Tooltip'
 import { TargetLink } from '../target'
 
@@ -10,39 +11,6 @@ const KIND_EMOJI: Record<string, string> = { star: '⭐️', unstar: '💔', fol
 const MAX_ACTS = 8
 const MAX_ORGS = 4
 const DAY_MS = 86_400_000
-
-export interface ActorEvent {
-  ts: string
-  kind: string
-  target: string
-  active: number // star/follow still present in current state
-}
-
-export interface Actor {
-  login: string
-  name: string | null
-  company: string | null
-  location: string | null
-  bio: string | null
-  blog: string | null
-  twitter: string | null
-  followers: number | null
-  following: number | null
-  public_repos: number | null
-  gh_created_at: string | null
-  orgs: string | null
-  star_sum: number | null
-  top_repos: string | null // JSON [{n: full_name, s: stars}], top 3 by stars
-  bsky_handle: string | null
-  bsky_followers: number | null
-  x_followers: number | null
-  li_url: string | null // curated LI profile (else we fall back to a name search)
-  li_company_url: string | null
-  n_events: number
-  first_ts: string
-  last_ts: string
-  events: ActorEvent[]
-}
 
 interface Score {
   reach: number
@@ -111,26 +79,6 @@ const BskyIcon = () => (
     <path d="M135.72 44.03C202.216 93.951 273.74 195.17 300 249.49c26.262-54.316 97.782-155.54 164.28-205.46C512.26 8.009 590-19.862 590 68.825c0 17.712-10.155 148.79-16.111 170.07-20.703 73.984-96.144 92.854-163.25 81.433 117.3 19.964 147.14 86.092 82.697 152.22-122.39 125.59-175.91-31.511-189.63-71.766-2.514-7.38-3.69-10.832-3.708-7.896-.017-2.936-1.193.516-3.707 7.896-13.714 40.255-67.233 197.36-189.63 71.766-64.444-66.128-34.605-132.26 82.697-152.22-67.108 11.421-142.55-7.449-163.25-81.433C20.15 217.613 9.997 86.535 9.997 68.825c0-88.687 77.742-60.816 125.72-24.795z" />
   </svg>
 )
-
-/** GH-hovercard-style preview, built entirely from enrichment data (no OG fetch needed). */
-function ActorCard({ a }: { a: Actor }) {
-  const where = [a.company, a.location].filter(Boolean).join(' · ')
-  return (
-    <div className="card">
-      <img src={`https://github.com/${a.login}.png?size=96`} alt="" />
-      <div>
-        <div><b>{a.name ?? a.login}</b>{a.name && <span className="dim"> · {a.login}</span>}</div>
-        {where && <div className="dim">{where}</div>}
-        <div>
-          {fmt(a.followers)} followers
-          {a.following != null && <span className="dim"> · {fmt(a.following)} following</span>}
-          {a.star_sum != null && a.star_sum > 0 && <span className="dim"> · {fmt(a.star_sum)} ⭐</span>}
-        </div>
-        {a.bio && <div className="card-bio">{a.bio}</div>}
-      </div>
-    </div>
-  )
-}
 
 function Breakdown({ a, s, hl }: { a: Actor; s: Score; hl: number }) {
   const reachParts = [

@@ -61,6 +61,40 @@ export interface Health {
   state: { stars: number; repos: number; follows: number; targets: number }
 }
 
+export interface ActorEvent {
+  ts: string
+  kind: string
+  target: string
+  active: number // star/follow still present in current state
+}
+
+/** `/api/actors` — gated (`internal`): the derived fields below are ours, not GitHub's. */
+export interface Actor {
+  login: string
+  name: string | null
+  company: string | null
+  location: string | null
+  bio: string | null
+  blog: string | null
+  twitter: string | null
+  followers: number | null
+  following: number | null
+  public_repos: number | null
+  gh_created_at: string | null
+  orgs: string | null
+  star_sum: number | null
+  top_repos: string | null // JSON [{n: full_name, s: stars}], top 3 by stars
+  bsky_handle: string | null
+  bsky_followers: number | null
+  x_followers: number | null
+  li_url: string | null // curated LI profile (else we fall back to a name search)
+  li_company_url: string | null
+  n_events: number
+  first_ts: string
+  last_ts: string
+  events: ActorEvent[]
+}
+
 export interface TargetCount {
   target: string
   count: number
