@@ -260,6 +260,7 @@ a { color: var(--link); text-decoration: none;
     img { width: 48px; height: 48px; border-radius: 6px; flex: none; }
     .card-bio { color: var(--dim); margin-top: .25rem; }
   }
+  .hero-tip { display: grid; gap: .2rem; min-width: 18rem; }
   .tgt-tip { display: inline-flex; align-items: center; gap: .5rem;
     img { width: 28px; height: 28px; border-radius: 5px; }
   }

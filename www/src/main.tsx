@@ -12,6 +12,7 @@ import Og from './pages/Og'
 import OgActors from './pages/OgActors'
 import OgGraphs from './pages/OgGraphs'
 import { WhoamiChip } from './auth'
+import { HeroTip } from './components/HeroTip'
 import { HotkeysProvider } from 'use-kbd'
 import { GitHubIcon, KbdSurfaces } from './kbd'
 import { ThemeProvider } from './theme'
@@ -53,7 +54,11 @@ function Layout() {
   return (
     <div className="layout">
       <header>
-        <h1><Link to="/"><img className="brand" src="/org/open-athena.png?v=3" alt="OA" /><span className="x">×</span><span className="gh"><GitHubIcon /></span></Link></h1>
+        <h1>
+          <HeroTip blurb="Open Athena × GitHub — stars & follows across Open-Athena and marin-community, collected every 5 minutes">
+            <Link to="/"><img className="brand" src="/org/open-athena.png?v=3" alt="OA" /><span className="x">×</span><span className="gh"><GitHubIcon /></span></Link>
+          </HeroTip>
+        </h1>
         <nav>
           <NavLink to="/" end>Feed</NavLink>
           <NavLink to="/graphs">Graphs</NavLink>
