@@ -12,6 +12,7 @@ import Og from './pages/Og'
 import OgActors from './pages/OgActors'
 import OgGraphs from './pages/OgGraphs'
 import { WhoamiChip } from './auth'
+import { HeroTip } from './components/HeroTip'
 import { HotkeysProvider } from 'use-kbd'
 import { KbdSurfaces } from './kbd'
 import { ThemeProvider } from './theme'
@@ -53,7 +54,11 @@ function Layout() {
   return (
     <div className="layout">
       <header>
-        <h1><Link to="/">👀 watchy</Link></h1>
+        <h1>
+          <HeroTip blurb="watchy — GitHub stars & follows, collected every 5 minutes">
+            <Link to="/">👀 watchy</Link>
+          </HeroTip>
+        </h1>
         <nav>
           <NavLink to="/" end>Feed</NavLink>
           <NavLink to="/graphs">Graphs</NavLink>
