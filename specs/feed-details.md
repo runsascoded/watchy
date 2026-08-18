@@ -21,14 +21,18 @@ Avatars are public because they add no information: the login is already rendere
 ## Implementation
 
 - `?d` (use-prms `boolParam`), alongside `?g` for group-by-repo; also an omnibar action, matching the other filters.
-- `components/Avatar.tsx` — `github.com/<login>.png?size=N`, so no stored avatar URL and no API call. **It rate-limits**: a 100-row page requests ~100 avatars and some return 503, so `onError` sets `visibility: hidden` rather than removing the node — a removed node reflows the row's text, and the reflow is more distracting than the gap.
+- `components/Avatar.tsx` — `avatars.githubusercontent.com/u/<uid>?s=N`, using the GitHub user id already stored on every event (`events.uid`, already returned by the public `/api/events`), so this needs no new column, no API call, and no stored avatar URL.
+
+  The obvious `github.com/<login>.png` is a **302 to exactly that CDN URL, served `cache-control: no-cache`** — so a 100-row page re-requests ~100 redirects on every single load, and GitHub 503s a share of them. That was the cause of the broken avatars, not a per-image failure. The CDN URL skips the redirect and is a plain cacheable asset (`max-age=300`). Fall back to the login URL when `uid` is null (possible on backfilled `git` events; currently 0 of the last 100).
+
+  `onError` still sets `visibility: hidden` rather than removing the node — a removed node reflows the row's text, and the reflow is more distracting than the gap.
 - `components/ActorCard.tsx` — lifted verbatim out of `pages/Actors.tsx`, which already hovercarded it on the actors table. Public tier only, which is what makes it safe to reuse anywhere a viewer may see actors at all.
 - `Actor`/`ActorEvent` moved `pages/Actors.tsx` → `api.ts`, so a shared component doesn't import types from a page.
 - The actors query is `enabled: details && INTERNAL && !!whoami` — a signed-out visitor never issues the gated request, so the wall is never the mechanism, absence of the request is.
 
 ## Verified
 
-Public path, live: avatars render at line height, and a real 503 (`chrisipanaque`) hides cleanly instead of showing a broken-image glyph. The signed-in path (names + card) is unexercised end-to-end — it needs a CF Access login — but `ActorCard` is the same component already rendering on the Actors page.
+Public path, live: avatars render at line height, and a failed image hides cleanly instead of showing a broken-image glyph (seen with real 503s from the pre-CDN URL form). The signed-in path (names + card) is unexercised end-to-end — it needs a CF Access login — but `ActorCard` is the same component already rendering on the Actors page.
 
 ## Deferred
 

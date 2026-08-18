@@ -144,7 +144,7 @@ export default function Feed() {
   const line = (e: Event, showTarget: boolean) => (
     <li key={e.id}>
       <span className="emoji">{KIND_EMOJI[e.kind]}</span>
-      {details && <Avatar className="avi" login={e.login} size={48} />}
+      {details && <Avatar className="avi" login={e.login} uid={e.uid} size={48} />}
       {details ? actorName(e) : <a href={`https://github.com/${e.login}`} className="login">{e.login}</a>}
       {showTarget && <>{' '}{KIND_VERB[e.kind]}{' '}<TargetLink target={e.target} /></>}
       {e.prior_ts && (
