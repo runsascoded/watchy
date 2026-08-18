@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { get } from '../api'
 import { KIND_EMOJI } from '../components/EventTimeline'
 import { OgHeader } from '../components/OgHeader'
-import { type Actor, isInsider, scoreActor } from './Actors'
+import { isInsider, scoreActor } from './Actors'
+import { type Actor } from '../api'
 
 const N = 7
 

@@ -167,7 +167,11 @@ a { color: var(--link); text-decoration: none;
   li {
     padding: .15rem 0;
     .emoji { margin-right: .4rem; }
+    // Details mode: sized to the line, not to the avatar — a taller row would
+    // re-flow the whole feed on toggle
+    .avi { width: 1.15em; height: 1.15em; border-radius: 3px; vertical-align: -.22em; margin-right: .35rem; }
     .login { font-weight: 600; }
+    .login-handle { font-size: .85rem; margin-left: .35rem; }
     .ts { color: var(--dim); font-size: .85rem; margin-left: .6rem; }
     .prior { font-size: .85rem; }
     .source {

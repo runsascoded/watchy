@@ -2,9 +2,13 @@ import { useEffect, useRef } from 'react'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { boolParam, stringParam, useUrlState } from 'use-prms'
 import { useActions } from 'use-kbd'
-import { get, type Event, type TargetCount } from '../api'
+import { get, type Actor, type Event, type TargetCount } from '../api'
+import { useWhoami } from '../auth'
+import { ActorCard } from '../components/ActorCard'
+import { Avatar } from '../components/Avatar'
 import { Tooltip } from '../components/Tooltip'
 import { TargetLink } from '../target'
+import { INTERNAL } from '../scope'
 
 const KIND_EMOJI: Record<Event['kind'], string> = {
   star: '⭐️',
@@ -44,6 +48,7 @@ export default function Feed() {
   const [target, setTarget] = useUrlState('t', stringParam(''))
   const [login, setLogin] = useUrlState('l', stringParam(''))
   const [byRepo, setByRepo] = useUrlState('g', boolParam)
+  const [details, setDetails] = useUrlState('d', boolParam)
 
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ['events', kind, target, login],
@@ -68,6 +73,19 @@ export default function Feed() {
     queryKey: ['targets'],
     queryFn: () => get<{ stars: TargetCount[]; follows: TargetCount[] }>('/api/targets'),
   })
+
+  // Details mode gives everyone avatars — the login is already shown and already
+  // links to the profile, so the picture is not new information. Display names
+  // and the hovercard need /api/actors, which is gated: the public feed stays a
+  // list of logins rather than a directory of people (specs/feed-details.md).
+  const { whoami } = useWhoami()
+  const { data: actorData } = useQuery({
+    queryKey: ['actors'],
+    queryFn: () => get<{ actors: Actor[] }>('/api/actors'),
+    enabled: details && INTERNAL && !!whoami,
+    retry: false,
+  })
+  const actors = new Map((actorData?.actors ?? []).map(a => [a.login, a]))
 
   // Load-more sentinel: fetch the next page as it nears the viewport
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -100,6 +118,7 @@ export default function Feed() {
     'feed:kind:follow': { label: '🔔 Follows only', group: 'Feed filters', handler: () => setKind('follow') },
     'feed:kind:unfollow': { label: '🔕 Unfollows only', group: 'Feed filters', handler: () => setKind('unfollow') },
     'feed:group-by-repo': { label: 'Toggle group by repo', group: 'Feed filters', handler: () => setByRepo(!byRepo) },
+    'feed:details': { label: 'Toggle details (avatars, names)', group: 'Feed filters', handler: () => setDetails(!details) },
     'feed:target:all': { label: 'All targets', group: 'Feed filters', keywords: ['target'], handler: () => setTarget('') },
     // One action per known target; omnibar-only (the modal would drown in them)
     ...Object.fromEntries(targetOptions.map(t => [`feed:target:${t}`, {
@@ -111,10 +130,22 @@ export default function Feed() {
     }])),
   })
 
+  const actorName = (e: Event) => {
+    const a = actors.get(e.login)
+    if (!a) return <a href={`https://github.com/${e.login}`} className="login">{e.login}</a>
+    return (
+      <Tooltip tip={<ActorCard a={a} />}>
+        <a href={`https://github.com/${e.login}`} className="login">{a.name ?? e.login}</a>
+        {a.name && <span className="dim login-handle">{e.login}</span>}
+      </Tooltip>
+    )
+  }
+
   const line = (e: Event, showTarget: boolean) => (
     <li key={e.id}>
       <span className="emoji">{KIND_EMOJI[e.kind]}</span>
-      <a href={`https://github.com/${e.login}`} className="login">{e.login}</a>
+      {details && <Avatar className="avi" login={e.login} size={48} />}
+      {details ? actorName(e) : <a href={`https://github.com/${e.login}`} className="login">{e.login}</a>}
       {showTarget && <>{' '}{KIND_VERB[e.kind]}{' '}<TargetLink target={e.target} /></>}
       {e.prior_ts && (
         <Tooltip tip={`${e.kind === 'unstar' ? 'starred' : 'followed'} ${e.prior_ts.slice(0, 10)}`}>
@@ -144,6 +175,10 @@ export default function Feed() {
         <label className="toggle">
           <input type="checkbox" checked={byRepo} onChange={e => setByRepo(e.target.checked)} />
           group by repo
+        </label>
+        <label className="toggle">
+          <input type="checkbox" checked={details} onChange={e => setDetails(e.target.checked)} />
+          details
         </label>
       </div>
       {isLoading && <p className="dim">loading…</p>}
