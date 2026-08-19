@@ -1,4 +1,4 @@
-import type { Actor } from '../api'
+import type { ActorCardFields } from '../api'
 import { Avatar } from './Avatar'
 
 const fmt = (n: number | null) => n?.toLocaleString() ?? ''
@@ -10,7 +10,7 @@ const fmt = (n: number | null) => n?.toLocaleString() ?? ''
  * stays out, so this card is safe anywhere the viewer is allowed to see actors
  * at all. Shared by the Actors table and the Feed (specs/feed-details.md).
  */
-export function ActorCard({ a }: { a: Actor }) {
+export function ActorCard({ a }: { a: ActorCardFields }) {
   const where = [a.company, a.location].filter(Boolean).join(' · ')
   return (
     <div className="card">

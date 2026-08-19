@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { boolParam, stringParam, useUrlState } from 'use-prms'
 import { useActions } from 'use-kbd'
-import { get, type Actor, type Event, type TargetCount } from '../api'
+import { get, type ActorCardFields, type Event, type TargetCount } from '../api'
 import { useWhoami } from '../auth'
 import { ActorCard } from '../components/ActorCard'
 import { Avatar } from '../components/Avatar'
@@ -74,19 +74,6 @@ export default function Feed() {
     queryFn: () => get<{ stars: TargetCount[]; follows: TargetCount[] }>('/api/targets'),
   })
 
-  // Details mode gives everyone avatars — the login is already shown and already
-  // links to the profile, so the picture is not new information. Display names
-  // and the hovercard need /api/actors, which is gated: the public feed stays a
-  // list of logins rather than a directory of people (specs/feed-details.md).
-  const { whoami } = useWhoami()
-  const { data: actorData } = useQuery({
-    queryKey: ['actors'],
-    queryFn: () => get<{ actors: Actor[] }>('/api/actors'),
-    enabled: details && INTERNAL && !!whoami,
-    retry: false,
-  })
-  const actors = new Map((actorData?.actors ?? []).map(a => [a.login, a]))
-
   // Load-more sentinel: fetch the next page as it nears the viewport
   const sentinelRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -104,6 +91,26 @@ export default function Feed() {
     if (!byDay.has(d)) byDay.set(d, [])
     byDay.get(d)!.push(e)
   }
+
+  // Details mode gives everyone avatars — the login is already shown and already links to the
+  // profile, so the picture is not new information. Display names and the hovercard come from
+  // the gated `/api/actors/cards`: the public feed stays a list of logins rather than a
+  // directory of people (specs/feed-details.md).
+  //
+  // Ask for the logins actually on screen, not "the actors" — the actors *table* endpoint is
+  // capped at the top 500 by follower count, so most of the feed fell outside it and rendered
+  // as bare logins. The key grows as you page in, and `keepPreviousData` keeps the names
+  // already resolved on screen while the superset loads instead of flashing back to logins.
+  const { whoami } = useWhoami()
+  const cardLogins = [...new Set(events.map(e => e.login))].sort()
+  const { data: cardData } = useQuery({
+    queryKey: ['actor-cards', cardLogins],
+    queryFn: () => get<{ actors: ActorCardFields[] }>(`/api/actors/cards?logins=${cardLogins.join(',')}`),
+    enabled: details && INTERNAL && !!whoami && cardLogins.length > 0,
+    placeholderData: keepPreviousData,
+    retry: false,
+  })
+  const actors = new Map((cardData?.actors ?? []).map(a => [a.login, a]))
 
   const targetOptions = [
     ...(targets?.stars ?? []).map(t => t.target),

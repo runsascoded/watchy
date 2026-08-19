@@ -29,10 +29,20 @@ Avatars are public because they add no information: the login is already rendere
 - `components/ActorCard.tsx` — lifted verbatim out of `pages/Actors.tsx`, which already hovercarded it on the actors table. Public tier only, which is what makes it safe to reuse anywhere a viewer may see actors at all.
 - `Actor`/`ActorEvent` moved `pages/Actors.tsx` → `api.ts`, so a shared component doesn't import types from a page.
 - The actors query is `enabled: details && INTERNAL && !!whoami` — a signed-out visitor never issues the gated request, so the wall is never the mechanism, absence of the request is.
+- **`GET /api/actors/cards?logins=…`** (gated `internal`) backs the names and cards, *not* `/api/actors`.
+
+  The first cut reused `/api/actors`, and most rows still showed a bare login: that endpoint serves the actors *table*, so it's `ORDER BY followers DESC LIMIT 500`. 2064 logins qualify, so anyone below rank 500 (the cutoff sits at 76 followers) was simply absent from the response — `eric-czech` at rank 766 and `dchu917` at 1375 both have names in `actors`, they just never reached the client. Raising the limit would have meant shipping 2000 full rows — derived tier, research prose, and every posted event per actor — to label 100 feed lines.
+
+  `cards` takes an explicit login list and returns only the eight fields `ActorCard` renders. `ActorCardFields = Pick<Actor, …>` in `api.ts` keeps one card component for both callers, and means the gated derived tier is absent from the response by *type*, not by discipline.
+- The query key is the sorted login set of the loaded pages, so paging in refetches a superset; `placeholderData: keepPreviousData` holds the resolved names on screen rather than flashing back to logins while it does.
 
 ## Verified
 
-Public path, live: avatars render at line height, and a failed image hides cleanly instead of showing a broken-image glyph (seen with real 503s from the pre-CDN URL form). The signed-in path (names + card) is unexercised end-to-end — it needs a CF Access login — but `ActorCard` is the same component already rendering on the Actors page.
+Public path, live: avatars render at line height, and a failed image hides cleanly instead of showing a broken-image glyph (seen with real 503s from the pre-CDN URL form).
+
+Signed-in path, live on `gh.oa.dev`: names resolve for every feed row that has one — which is what surfaced the top-500 truncation above.
+
+Name coverage in the DB (2026-08-18): 2064 distinct event logins, all 2064 with `actors` rows, 1761 (85%) with a GitHub display name. The remaining 15% have no name set on their profile and fall back to the login via `a.name ?? e.login`.
 
 ## Deferred
 
