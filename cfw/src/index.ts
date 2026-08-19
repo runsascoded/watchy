@@ -224,6 +224,28 @@ async function apiActors(url: URL, env: Env): Promise<Response> {
   return json({ actors: results.map(a => ({ ...a, events: (evByLogin.get(a.login) ?? []).map(({ login: _, ...e }) => e) })) })
 }
 
+/**
+ * Public-tier profile cards for an explicit set of logins — what the feed's details mode
+ * needs (specs/feed-details.md), and nothing else.
+ *
+ * Deliberately not `apiActors` with a filter: that one is `ORDER BY followers DESC LIMIT 500`
+ * for the actors *table*, so a feed row by anyone outside the top 500 silently rendered as a
+ * bare login. It also ships the derived tier (research prose, cross-platform handles) plus
+ * every posted event per actor — a payload the feed has no use for and shouldn't be handed.
+ */
+async function apiActorCards(url: URL, env: Env): Promise<Response> {
+  const logins = [...new Set((url.searchParams.get('logins') ?? '').split(',').filter(Boolean))].slice(0, 1000)
+  if (!logins.length) return json({ actors: [] })
+  const { results } = await env.DB
+    .prepare(
+      `SELECT login, name, company, location, bio, followers, following, star_sum
+       FROM actors WHERE login IN (${logins.map(() => '?').join(',')})`,
+    )
+    .bind(...logins)
+    .all()
+  return json({ actors: results })
+}
+
 // Excludes insiders (prospects only): OA or marin-community org membership, or company
 // matching open…athena ("@Open-Athena", "Open Athena"). Kept in sync with buildWeekStats
 // notables and the FE isInsider (www/src/pages/Actors.tsx).
@@ -405,11 +427,12 @@ export default {
     if (path === '/api/events') return apiEvents(url, env)
     if (path === '/api/targets') return apiTargets(env)
     if (path === '/api/counts') return apiCounts(url, env)
-    if (path === '/api/actors' || path === '/api/actors/summary') {
+    if (path === '/api/actors' || path === '/api/actors/summary' || path === '/api/actors/cards') {
       const gate = gateFor(env)
       const auth = gate && await gate.authenticate(req)
       if (!auth || !hasScope(auth, 'internal')) return json({ error: 'unauthenticated' }, 401)
-      return path === '/api/actors' ? apiActors(url, env) : apiActorsSummary(url, env)
+      if (path === '/api/actors/summary') return apiActorsSummary(url, env)
+      return path === '/api/actors/cards' ? apiActorCards(url, env) : apiActors(url, env)
     }
     if (path === '/api/series') return apiSeries(url, env)
     if (path === '/api/status') return apiStatus(env)

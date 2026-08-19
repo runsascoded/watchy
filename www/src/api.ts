@@ -95,6 +95,16 @@ export interface Actor {
   events: ActorEvent[]
 }
 
+/**
+ * `/api/actors/cards?logins=…` — gated (`internal`), but only the GitHub-public tier:
+ * exactly what `ActorCard` renders, for exactly the logins asked for. `Actor` is
+ * assignable to this, so the actors table and the feed share one card component.
+ */
+export type ActorCardFields = Pick<
+  Actor,
+  'login' | 'name' | 'company' | 'location' | 'bio' | 'followers' | 'following' | 'star_sum'
+>
+
 export interface TargetCount {
   target: string
   count: number
