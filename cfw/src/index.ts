@@ -1,14 +1,19 @@
 import { collect, type CollectResult, type Env } from './collect'
 import { enrichActors, researchActors } from './actors'
 import { handleAuth } from './auth'
+import { chunkedAll } from './d1'
 import { gateFor, hasScope } from './gate'
 import { buildWeekStats, renderRollup, renderSummary, weeklySummary } from './summary'
 
-const WEEKLY_CRON = '0 14 * * *' // keep in sync with wrangler.jsonc triggers.crons; day-agnostic by design (specs/weekly-rollup.md)
 import { maybeAlert } from './alerts'
 import { sendPushover } from './pushover'
 import { syncSlack } from './slack'
-import { getWeeklyThread } from './weekly'
+import { getWeeklyThread, updateWeeklyOp, weekStartOf } from './weekly'
+
+// Backstop only — the close-out normally fires from runCollection, on the first tick of
+// a new week. Keep in sync with wrangler.jsonc triggers.crons; day-agnostic by design
+// (specs/weekly-rollup.md).
+const WEEKLY_CRON = '0 14 * * *'
 
 async function runCollection(env: Env, fullSweep: boolean): Promise<CollectResult> {
   const startedAt = new Date().toISOString()
@@ -47,6 +52,15 @@ async function runCollection(env: Env, fullSweep: boolean): Promise<CollectResul
     if (researched) console.log(`actors: researched ${researched}`)
   } catch (e) {
     console.error('researchActors failed:', e)
+  }
+  // Close the outgoing week before posting into the new one: the rollup is a broadcast
+  // reply under the *old* OP, so firing it from the daily cron put it in the channel
+  // hours after the new week's thread had already started. Idempotent per week (one
+  // indexed lookup on the common path); the cron stays as a backstop.
+  try {
+    await weeklySummary(env)
+  } catch (e) {
+    console.error('weeklySummary failed:', e)
   }
   try {
     const slackPosted = await syncSlack(env)
@@ -236,14 +250,12 @@ async function apiActors(url: URL, env: Env): Promise<Response> {
 async function apiActorCards(url: URL, env: Env): Promise<Response> {
   const logins = [...new Set((url.searchParams.get('logins') ?? '').split(',').filter(Boolean))].slice(0, 1000)
   if (!logins.length) return json({ actors: [] })
-  const { results } = await env.DB
-    .prepare(
-      `SELECT login, name, company, location, bio, followers, following, star_sum
-       FROM actors WHERE login IN (${logins.map(() => '?').join(',')})`,
-    )
-    .bind(...logins)
-    .all()
-  return json({ actors: results })
+  const actors = await chunkedAll(
+    env.DB,
+    logins,
+    ph => `SELECT login, name, company, location, bio, followers, following, star_sum FROM actors WHERE login IN (${ph})`,
+  )
+  return json({ actors })
 }
 
 // Excludes insiders (prospects only): OA or marin-community org membership, or company
@@ -446,10 +458,11 @@ export default {
       const withEvents = results.filter(r => (r.n_events ?? 0) > 0).map(r => r.id)
       const evByRun = new Map<number, unknown[]>()
       if (withEvents.length) {
-        const { results: evs } = await env.DB
-          .prepare(`SELECT run_id, ts, kind, target, login FROM events WHERE run_id IN (${withEvents.map(() => '?').join(',')})`)
-          .bind(...withEvents)
-          .all<{ run_id: number }>()
+        const evs = await chunkedAll<{ run_id: number }>(
+          env.DB,
+          withEvents,
+          ph => `SELECT run_id, ts, kind, target, login FROM events WHERE run_id IN (${ph})`,
+        )
         for (const e of evs) {
           if (!evByRun.has(e.run_id)) evByRun.set(e.run_id, [])
           evByRun.get(e.run_id)!.push(e)
@@ -476,6 +489,20 @@ export default {
         thread_ts: opTs,
         stats,
       })
+    }
+
+    // Rebuild a week's live-thread scoreboard from D1. The OP is only rewritten when its
+    // week sees new events, so a week whose updates failed (or whose data was fixed after
+    // the fact) stays wrong forever without a way to force the rebuild.
+    if (path === '/weekly-refresh') {
+      const denied = keyGate(req, env)
+      if (denied) return denied
+      const week = url.searchParams.get('week') ?? weekStartOf(new Date().toISOString())
+      const opTs = await getWeeklyThread(env, week)
+      if (!opTs) return json({ error: `no weekly thread for ${week}` }, 404)
+      const closed = url.searchParams.get('closed') === '1'
+      await updateWeeklyOp(env, week, opTs, { closed })
+      return json({ week, ts: opTs, closed })
     }
 
     if (path === '/check') {

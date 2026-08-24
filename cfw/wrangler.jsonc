@@ -23,7 +23,7 @@
   "assets": {
     "directory": "../www/dist",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/check", "/test-pushover", "/summary-preview"]
+    "run_worker_first": ["/api/*", "/check", "/test-pushover", "/summary-preview", "/weekly-refresh"]
   },
   "vars": {
     "TARGETS": {
