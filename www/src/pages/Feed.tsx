@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { boolParam, stringParam, useUrlState } from 'use-prms'
 import { useActions } from 'use-kbd'
-import { get, type ActorCardFields, type Event, type TargetCount } from '../api'
+import { get, type ActorCardFields, type DayRollup, type Event, type TargetCount } from '../api'
 import { useWhoami } from '../auth'
 import { ActorCard } from '../components/ActorCard'
 import { Avatar } from '../components/Avatar'
@@ -67,6 +67,21 @@ export default function Feed() {
       return last.events.length === PAGE ? { ts: tail.ts, id: tail.id } : undefined
     },
   })
+  // Day headers summarize the whole day, so the totals come from the server — the loaded
+  // pages only ever hold a prefix of a busy day (see api.ts `DayRollup`). Same filters as
+  // the event query, so the header always describes the rows below it.
+  const { data: dayData } = useQuery({
+    queryKey: ['days', kind, target, login],
+    queryFn: () => {
+      const params = new URLSearchParams()
+      if (kind) params.set('kind', kind)
+      if (target) params.set('target', target)
+      if (login) params.set('login', login)
+      return get<{ days: DayRollup[] }>(`/api/days?${params}`)
+    },
+  })
+  const rollups = new Map((dayData?.days ?? []).map(d => [d.day, d]))
+
   const { data: targets } = useQuery({
     queryKey: ['targets'],
     queryFn: () => get<{ stars: TargetCount[]; follows: TargetCount[] }>('/api/targets'),
@@ -192,7 +207,7 @@ export default function Feed() {
       {error && <p className="error">{String(error)}</p>}
       {[...byDay.entries()].map(([d, dayEvents]) => {
         const shut = closed.has(d)
-        const header = <DayHeader day={d} events={dayEvents} closed={shut} showTargets={!byRepo} onToggle={() => toggleDay(d)} />
+        const header = <DayHeader day={d} rollup={rollups.get(d)} closed={shut} showTargets={!byRepo} onToggle={() => toggleDay(d)} />
         if (shut) return <section key={d}>{header}</section>
         if (!byRepo) {
           return (

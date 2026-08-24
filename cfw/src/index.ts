@@ -93,7 +93,9 @@ function keyGate(req: Request, env: Env): Response | null {
 
 const EVENT_KINDS = ['star', 'unstar', 'follow', 'unfollow']
 
-async function apiEvents(url: URL, env: Env): Promise<Response> {
+/** The feed's filter clause, shared by `/api/events` and `/api/days` — the day headers
+ * summarize exactly the rows the feed is listing, so both must filter identically. */
+function eventFilters(url: URL): { wheres: string[]; binds: (string | number)[] } | Response {
   const wheres: string[] = []
   const binds: (string | number)[] = []
   const target = url.searchParams.get('target')
@@ -113,6 +115,41 @@ async function apiEvents(url: URL, env: Env): Promise<Response> {
     wheres.push(`${url.searchParams.get('exclude') === '1' ? 'NOT ' : ''}(${clause})`)
     for (const o of owners) binds.push(o, `${o}/%`)
   }
+  return { wheres, binds }
+}
+
+/** Per-day rollup for the feed's day headers: kind/target breakdown + distinct actors.
+ *
+ * Not derivable client-side — the feed pages 100 events at a time, so "89 ⭐" computed
+ * from what's loaded undercounts a day the moment it spans a page boundary, while
+ * claiming to describe the whole day. */
+async function apiDays(url: URL, env: Env): Promise<Response> {
+  const f = eventFilters(url)
+  if (f instanceof Response) return f
+  const where = f.wheres.length ? `WHERE ${f.wheres.join(' AND ')}` : ''
+  const [cells, actors] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT substr(ts, 1, 10) day, kind, target, COUNT(*) n FROM events ${where}
+       GROUP BY day, kind, target ORDER BY day DESC`,
+    ).bind(...f.binds),
+    // Separate pass: COUNT(DISTINCT login) doesn't sum across the kind/target cells
+    env.DB.prepare(
+      `SELECT substr(ts, 1, 10) day, COUNT(DISTINCT login) actors FROM events ${where} GROUP BY day`,
+    ).bind(...f.binds),
+  ])
+  const byDay = new Map(
+    (actors.results as { day: string; actors: number }[]).map(r => [r.day, { day: r.day, actors: r.actors, cells: [] as unknown[] }]),
+  )
+  for (const c of cells.results as { day: string; kind: string; target: string; n: number }[]) {
+    byDay.get(c.day)?.cells.push({ kind: c.kind, target: c.target, n: c.n })
+  }
+  return json({ days: [...byDay.values()].sort((a, b) => b.day.localeCompare(a.day)) })
+}
+
+async function apiEvents(url: URL, env: Env): Promise<Response> {
+  const f = eventFilters(url)
+  if (f instanceof Response) return f
+  const { wheres, binds } = f
   // Keyset cursor for infinite scroll — matches the (ts, id) sort, so pages stay
   // stable as new events arrive (unlike OFFSET)
   const beforeTs = url.searchParams.get('before_ts')
@@ -437,6 +474,7 @@ export default {
     if (path.startsWith('/api/auth/')) return handleAuth(req, env)
 
     if (path === '/api/events') return apiEvents(url, env)
+    if (path === '/api/days') return apiDays(url, env)
     if (path === '/api/targets') return apiTargets(env)
     if (path === '/api/counts') return apiCounts(url, env)
     if (path === '/api/actors' || path === '/api/actors/summary' || path === '/api/actors/cards') {
