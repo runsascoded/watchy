@@ -10,11 +10,65 @@ const NOTABLE_MIN_STAR_SUM = 500
 const TOP_REPO_MIN = 200
 const NOTABLE_CAP = 6
 
-/** Monday (UTC) of the week containing `ts`, as an ISO date. */
+// Weeks turn over at 23:00 Sunday Pacific, not midnight UTC. Midnight UTC is 8pm ET /
+// 5pm PT Sunday — mid-evening, when the channel is still being read and the day's stars
+// are still landing, so a week's worth of activity got split across two threads and the
+// close-out posted into prime time. 23:00 PT is 2am ET: quiet on both coasts.
+//
+// DST-aware by design (07:00 UTC in PDT, 06:00 in PST) — a fixed UTC offset would drift
+// an hour twice a year, and "the week turns over at 11pm" is the thing to keep true.
+const WEEK_TZ = 'America/Los_Angeles'
+/** Minutes the boundary sits *before* local midnight. */
+const WEEK_SHIFT_MIN = 60
+
+const TZ_PARTS = new Intl.DateTimeFormat('en-CA', {
+  timeZone: WEEK_TZ,
+  hour12: false,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+})
+
+/** An instant's WEEK_TZ wall clock, as a Date whose *UTC* fields read as the local ones. */
+function wallClock(ts: string | Date): Date {
+  const p: Record<string, string> = {}
+  for (const { type, value } of TZ_PARTS.formatToParts(new Date(ts))) p[type] = value
+  // en-CA renders local midnight as hour 24 in some ICU builds
+  const hour = p.hour === '24' ? '00' : p.hour
+  return new Date(`${p.year}-${p.month}-${p.day}T${hour}:${p.minute}:${p.second}Z`)
+}
+
+/** The instant at which `local` ("YYYY-MM-DDTHH:mm:ss", WEEK_TZ) occurs. */
+function instantOf(local: string): string {
+  // Read the zone's offset *at* the guessed instant, then correct. Only ambiguous inside
+  // the repeated hour of a fall-back, which 23:00 PT is not (the repeat is 01:00–02:00).
+  const guess = new Date(`${local}Z`)
+  const offset = guess.getTime() - wallClock(guess).getTime()
+  return new Date(guess.getTime() + offset).toISOString()
+}
+
+/** Week key (the Monday whose week `ts` falls in) as an ISO date. */
 export function weekStartOf(ts: string): string {
-  const d = new Date(ts)
+  const d = wallClock(ts)
+  d.setUTCMinutes(d.getUTCMinutes() + WEEK_SHIFT_MIN) // 23:00 Sun → 00:00 Mon
   d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7))
   return d.toISOString().slice(0, 10)
+}
+
+/** ISO date `n` days after `date`, both plain dates. */
+export function addDays(date: string, n: number): string {
+  return new Date(new Date(date).getTime() + n * 86_400_000).toISOString().slice(0, 10)
+}
+
+/** The half-open instant range `[start, end)` a week key covers — what SQL must compare
+ * `events.ts` against. Not `${weekStart}T00:00:00Z`: the boundary is a wall-clock time in
+ * another zone, so it lands 7 or 8 hours later depending on the season. */
+export function weekBounds(weekStart: string): { start: string; end: string } {
+  const boundary = (monday: string) => instantOf(`${addDays(monday, -1)}T23:00:00`)
+  return { start: boundary(weekStart), end: boundary(addDays(weekStart, 7)) }
 }
 
 export function weekLabel(weekStart: string): string {
@@ -51,8 +105,19 @@ export interface WeeklyOpts {
   orgEmoji?: Record<string, string>
   /** Week is over: append the closed footer (specs/weekly-rollup.md) */
   closed?: boolean
-  /** Exclusive end of the week window, for the closed footer's range */
-  weekEnd?: string
+}
+
+/** A week, in both forms the scoreboard needs: the `YYYY-MM-DD` key it's labelled and
+ * stored by, and the instants it actually spans (23:00 PT Sunday → 23:00 PT Sunday). */
+export interface Week {
+  key: string
+  start: string
+  end: string
+}
+
+/** Both forms of a week, from its key. */
+export function week(key: string): Week {
+  return { key, ...weekBounds(key) }
 }
 
 const txt = (text: string) => ({ type: 'text', text })
@@ -82,12 +147,12 @@ function affil(a: WeekActor): { text: string; url: string | null } | null {
 
 /** Pure scoreboard builder: org-grouped deltas (org header + repo bullets when the
  * org itself saw follows; flat lines otherwise) + Notable actor bullets. */
-export function buildWeeklyOp(weekStart: string, data: WeeklyData, opts: WeeklyOpts = {}): { blocks: unknown[]; text: string } {
-  const { dashboardUrl, orgEmoji = {}, closed, weekEnd } = opts
+export function buildWeeklyOp(wk: Week, data: WeeklyData, opts: WeeklyOpts = {}): { blocks: unknown[]; text: string } {
+  const { dashboardUrl, orgEmoji = {}, closed } = opts
   const base = new Map<string, number>()
   const cur = new Map<string, number>()
   for (const r of data.counts) {
-    if (r.ts < weekStart || !base.has(r.target)) base.set(r.target, r.count)
+    if (r.ts < wk.start || !base.has(r.target)) base.set(r.target, r.count)
     cur.set(r.target, r.count)
   }
   const nEvents = new Map<string, number>()
@@ -170,7 +235,7 @@ export function buildWeeklyOp(weekStart: string, data: WeeklyData, opts: WeeklyO
     const parts = Object.entries(net)
       .filter(([, [p, m]]) => p || m)
       .map(([unit, [p, m]]) => `+${p}${m ? ` (−${m})` : ''} ${unit}`)
-    const head = `Closed · ${weekStart} → ${weekEnd ?? ''}${parts.length ? ` · ${parts.join(' · ')}` : ''}`
+    const head = `Closed · ${wk.key} → ${addDays(wk.key, 7)}${parts.length ? ` · ${parts.join(' · ')}` : ''}`
     const footer: unknown[] = [txt(head)]
     if (dashboardUrl) {
       footer.push(txt(' · '), lnk(dashboardUrl, 'dashboard'), txt(' · '), lnk(`${dashboardUrl}/actors`, 'actors'))
@@ -222,27 +287,29 @@ export async function ensureWeeklyThread(env: Env, weekStart: string): Promise<s
 
 /** Rebuild + chat.update the weekly OP scoreboard from D1. */
 export async function updateWeeklyOp(env: Env, weekStart: string, opTs: string, opts: { closed?: boolean } = {}): Promise<void> {
-  const weekEnd = new Date(new Date(weekStart).getTime() + 7 * 86_400_000).toISOString().slice(0, 10)
+  // The week's *instants*, not `${weekStart}T00:00:00Z` — the boundary is 23:00 Pacific
+  const wk = week(weekStart)
+  const { start, end } = wk
   const { results: events } = await env.DB
     .prepare(
       `SELECT e.id, e.ts, e.kind, e.target, e.login FROM events e
        JOIN slack_posts sp ON sp.event_id = e.id
        WHERE e.ts >= ? AND e.ts < ? ORDER BY e.ts, e.id`,
     )
-    .bind(weekStart, weekEnd)
+    .bind(start, end)
     .all<WeekEvent>()
   if (!events.length) return
   const targets = [...new Set(events.map(e => e.target))]
   const logins = [...new Set(events.map(e => e.login))]
   // Both lists are unbounded in the number of actors/targets a week sees, so both must
   // chunk — `logins` crossing 100 is what froze the 8/17 and 8/24 scoreboards (see d1.ts).
-  // `ts < weekEnd` also keeps a *closed* week's totals at what they were when it closed,
+  // `ts < end` also keeps a *closed* week's totals at what they were when it closed,
   // rather than drifting to today's count on any later rebuild.
   const counts = (await chunkedAll<{ target: string; ts: string; count: number }>(
     env.DB,
     targets,
     ph => `SELECT target, ts, count FROM counts WHERE ts < ? AND target IN (${ph}) ORDER BY target, ts`,
-    [`${weekEnd}T00:00:00Z`],
+    [end],
   )).sort((a, b) => a.target.localeCompare(b.target) || a.ts.localeCompare(b.ts))
   const actors = await chunkedAll<WeekActor>(
     env.DB,
@@ -254,7 +321,7 @@ export async function updateWeeklyOp(env: Env, weekStart: string, opTs: string, 
       `SELECT e.login, MIN(sp.ts) ts FROM slack_posts sp JOIN events e ON e.id = sp.event_id
        WHERE e.ts >= ? AND e.ts < ? GROUP BY e.login`,
     )
-    .bind(weekStart, weekEnd)
+    .bind(start, end)
     .all<{ login: string; ts: string }>()
   const replyTs = new Map(replyRows.map(r => [r.login, r.ts]))
   const replyLink = (login: string): string | null => {
@@ -262,11 +329,10 @@ export async function updateWeeklyOp(env: Env, weekStart: string, opTs: string, 
     if (!ts || !env.SLACK_WORKSPACE_URL) return null
     return `${env.SLACK_WORKSPACE_URL}/archives/${env.SLACK_CHANNEL_ID}/p${ts.replace('.', '')}?thread_ts=${opTs}&cid=${env.SLACK_CHANNEL_ID}`
   }
-  const { blocks, text } = buildWeeklyOp(weekStart, { events, counts, actors, replyLink }, {
+  const { blocks, text } = buildWeeklyOp(wk, { events, counts, actors, replyLink }, {
     dashboardUrl: env.DASHBOARD_URL,
     orgEmoji: env.SLACK_ORG_EMOJI,
     closed: opts.closed,
-    weekEnd,
   })
   await slackApi(env, 'chat.update', { channel: env.SLACK_CHANNEL_ID, ts: opTs, blocks, text })
 }

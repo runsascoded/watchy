@@ -57,16 +57,44 @@ So the window is now derived **from the clock, not the schedule**: `weekEnd = we
 
 A new "Week of M/D" OP begins **whenever the first event of that ISO week arrives** — 00:05 Monday in a busy week, Thursday in a quiet one. Pre-creating on a schedule would leave empty OPs in quiet weeks that then need deleting, so laziness stays.
 
-Consequence worth knowing: the cron fires 14 hours *into* the new week, so if anything landed Monday morning UTC, the new week's OP already sits above the closing week's rollup. The `Week of 8/9 closed` label carries that; moving the cron to 00:05 Monday would order it perfectly but land 8pm ET Sunday, trading readership for tidiness. Readership wins.
+~~Consequence worth knowing: the cron fires 14 hours *into* the new week, so if anything landed Monday morning UTC, the new week's OP already sits above the closing week's rollup.~~ **Superseded** (2026-08-24) — see §6/§7. The trade-off that made 14:00Z worth its ordering cost was "00:05 Monday lands 8pm ET Sunday". Moving the *boundary* off UTC removes that cost, so the close-out now fires at the boundary.
+
+### 6. The boundary is 23:00 Sunday Pacific (2026-08-24)
+
+Midnight UTC is 8pm ET / 5pm PT Sunday — mid-evening, with the channel still being read and the day's stars still landing. Weeks turn over at **23:00 America/Los_Angeles** instead: 2am ET, quiet on both coasts, and late enough that a whole US Sunday is done.
+
+DST-aware, not a fixed offset — the boundary is 06:00Z in PDT and 07:00Z in PST. "The week turns over at 11pm Pacific" is the invariant worth keeping; a frozen offset would drift an hour twice a year.
+
+That makes the week window an **instant range, not a date prefix**. `weekBounds(key)` returns `{ start, end }`, and every query that compared `events.ts >= '2026-08-24'` now binds those. `buildWeeklyOp` takes a `Week` (`{ key, start, end }`) rather than a date string, so the base-count cutoff can't silently fall back to string-prefix comparison against midnight UTC.
+
+Week *keys* are unchanged (still the Monday), so `weekly_threads` and `summaries` need no migration. One wrinkle, accepted rather than migrated: which thread a past event was posted under was decided by the old rule, so rebuilding a pre-08-24 week shifts its window 6–8h and can move a Sunday-evening event between weeks. Nothing re-posts; only a forced rebuild would show it.
+
+### 7. Close-out fires at the boundary, not on the cron (2026-08-24)
+
+`weeklySummary` now runs from `runCollection` — every tick, ahead of `syncSlack` — with its `summaries` dup-check moved *before* the aggregation so the common path costs one indexed lookup. The first tick after 23:00 PT Sunday closes the week; the new week's OP can only be created by a later `syncSlack`, so the rollup is guaranteed to land above it. `0 14 * * *` stays as a backstop for a week where collection was down at the boundary.
+
+`/weekly-refresh?week=&closed=` (key-gated) force-rebuilds a week's OP from D1. A week only rebuilds when it sees new events, so without this a week whose updates failed stays wrong forever — which is exactly what happened in §8.
+
+### 8. What actually broke it: D1's 100-bind cap (2026-08-24)
+
+`updateWeeklyOp` binds one `?` per distinct actor of the week. D1 rejects a statement with >100 bound parameters (`too many SQL variables … SQLITE_ERROR [code: 7500]`), so the first update past 100 actors threw — and so did every one after it, including the end-of-week finalize.
+
+| week | froze at | showing | actual at close |
+|---|---|---|---|
+| 8/17 | 08-22T23:35Z, actor #101 | `marin 1,265 → 1,350` | 1,528 |
+| 8/24 | 08-24T07:15Z, actor #99 | `marin 1,528 → 1,620` | 1,700+ |
+
+Symptoms that looked like three separate bugs: a scoreboard whose "after" was smaller than the next week's "before"; a summary whose totals (`1,693`) disagreed with both (it counts `stars` rows — no IN-list, so it was never wrong); and an 8/17 rollup that arrived as the **standalone** `renderSummary` with no closed footer, because `finalizeWeeklyOp` threw and `weeklySummary` fell back.
+
+Fixed in `d1.ts`: `chunkedAll` runs an IN-list query per ≤100-bind chunk. Applied to all four sites — both in `updateWeeklyOp`, `/api/actors/cards`, and `/api/runs`.
 
 ## Not doing (yet)
-
-- **Local week boundaries.** `weekStartOf` is UTC Monday, so weeks turn over at 8pm ET Sunday and Sunday-evening activity lands in the following week's thread. A `WEEK_TZ_OFFSET` (or full IANA zone) would align to local Monday. Deferred — it changes the meaning of every existing `weekly_threads.week_start` row, so it wants its own migration.
 - **Deeper WoW analytics** (new-vs-returning actors, per-target trends). The one-number comparison is there to prove the rollup has an independent job; richer trends belong on the dashboard, not in Slack.
 
 ## Implementation
 
-- `weekly.ts`: `getWeeklyThread` (lookup without create), `buildWeeklyOp(..., { closed, weekEnd })` → closed footer, `updateWeeklyOp(..., { closed })`, `finalizeWeeklyOp(env, weekStart)` → returns the OP ts or `null`.
+- `weekly.ts`: `weekStartOf`/`weekBounds`/`week` (23:00 PT boundary), `getWeeklyThread` (lookup without create), `buildWeeklyOp(week, ..., { closed })` → closed footer, `updateWeeklyOp(..., { closed })`, `finalizeWeeklyOp(env, weekStart)` → returns the OP ts or `null`.
+- `d1.ts`: `chunkedAll` — every `IN (…)` over a runtime-length list must go through it.
 - `summary.ts`: `WeekStats.prevEvents`, `renderRollup()`, and `weeklySummary()` routing between reply-broadcast and standalone.
 - Idempotency is unchanged: the `summaries` row keyed on `week_start` still short-circuits a second run.
 - No schema change.
