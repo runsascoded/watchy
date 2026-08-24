@@ -32,7 +32,8 @@ export function DayHeader({ day, rollup, closed, showTargets, onToggle }: {
     targets.set(c.target, (targets.get(c.target) ?? 0) + c.n)
     total += c.n
   }
-  const top = [...targets.entries()].sort((a, b) => b[1] - a[1])
+  // Name as tiebreak, so equal counts don't reorder between renders
+  const top = [...targets.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
   const bits: string[] = KIND_ORDER.filter(k => kinds.has(k)).map(k => `${kinds.get(k)} ${KIND_EMOJI[k]}`)
   if (rollup && rollup.actors < total) bits.push(`${rollup.actors} actors`)
   if (showTargets && top.length > 1) {

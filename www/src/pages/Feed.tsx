@@ -87,15 +87,22 @@ export default function Feed() {
     queryFn: () => get<{ stars: TargetCount[]; follows: TargetCount[] }>('/api/targets'),
   })
 
-  // Load-more sentinel: fetch the next page as it nears the viewport
+  // Load-more sentinel: fetch the next page as it nears the viewport.
+  //
+  // Re-created per page rather than observed once, because IntersectionObserver only
+  // fires on *changes*: a page that doesn't grow past the sentinel leaves it silently
+  // intersecting and paging stops. Collapsing days makes that the normal case — the page
+  // barely grows — so the observer has to be re-armed to re-check. Terminates when the
+  // headers finally push the sentinel out of range, or the history runs out.
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const pagesLoaded = data?.pages.length ?? 0
   useEffect(() => {
     const el = sentinelRef.current
-    if (!el) return
+    if (!el || !hasNextPage || isFetchingNextPage) return
     const obs = new IntersectionObserver(es => { if (es.some(x => x.isIntersecting)) fetchNextPage() }, { rootMargin: '600px' })
     obs.observe(el)
     return () => obs.disconnect()
-  }, [fetchNextPage])
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, pagesLoaded])
 
   const events = data?.pages.flatMap(p => p.events) ?? []
   const byDay = new Map<string, Event[]>()
