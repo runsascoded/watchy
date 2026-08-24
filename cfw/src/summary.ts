@@ -139,10 +139,16 @@ export async function buildWeekStats(env: Env, now = new Date()): Promise<WeekSt
 /** Close out the week: stamp its live thread as closed and post the rollup as a
  * broadcast reply under it; fall back to a standalone post when the week never
  * opened a thread (specs/weekly-rollup.md). Idempotent per week. */
-export async function weeklySummary(env: Env): Promise<string | null> {
-  const stats = await buildWeekStats(env)
-  const dup = await env.DB.prepare('SELECT id FROM summaries WHERE week_start = ?').bind(stats.weekStart).first()
+export async function weeklySummary(env: Env, now = new Date()): Promise<string | null> {
+  // Dup-check *before* aggregating: this runs every tick (runCollection calls it ahead
+  // of syncSlack, so the close-out lands above the new week's OP rather than at the next
+  // cron hours later), and the common case must cost one indexed lookup, not a week's
+  // worth of GROUP BYs.
+  const weekEnd = weekStartOf(now.toISOString())
+  const weekStart = new Date(new Date(weekEnd).getTime() - 7 * 86_400_000).toISOString().slice(0, 10)
+  const dup = await env.DB.prepare('SELECT id FROM summaries WHERE week_start = ?').bind(weekStart).first()
   if (dup) return null
+  const stats = await buildWeekStats(env, now)
   const slack = env.SLACK_BOT_TOKEN && env.SLACK_CHANNEL_ID
   // A finalize failure must not cost us the rollup — fall back to standalone
   const opTs = slack

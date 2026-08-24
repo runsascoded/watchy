@@ -1,4 +1,5 @@
 import type { Env } from './collect'
+import { chunkedAll } from './d1'
 import { companyKeywords } from './slack'
 
 // Weekly thread OPs (specs/actor-intel.md v9): one "Week of M/D" OP per ISO week;
@@ -233,14 +234,21 @@ export async function updateWeeklyOp(env: Env, weekStart: string, opTs: string, 
   if (!events.length) return
   const targets = [...new Set(events.map(e => e.target))]
   const logins = [...new Set(events.map(e => e.login))]
-  const { results: counts } = await env.DB
-    .prepare(`SELECT target, ts, count FROM counts WHERE target IN (${targets.map(() => '?').join(',')}) ORDER BY target, ts`)
-    .bind(...targets)
-    .all<{ target: string; ts: string; count: number }>()
-  const { results: actors } = await env.DB
-    .prepare(`SELECT login, followers, star_sum, top_repos, company, location, li_company_url FROM actors WHERE login IN (${logins.map(() => '?').join(',')})`)
-    .bind(...logins)
-    .all<WeekActor>()
+  // Both lists are unbounded in the number of actors/targets a week sees, so both must
+  // chunk — `logins` crossing 100 is what froze the 8/17 and 8/24 scoreboards (see d1.ts).
+  // `ts < weekEnd` also keeps a *closed* week's totals at what they were when it closed,
+  // rather than drifting to today's count on any later rebuild.
+  const counts = (await chunkedAll<{ target: string; ts: string; count: number }>(
+    env.DB,
+    targets,
+    ph => `SELECT target, ts, count FROM counts WHERE ts < ? AND target IN (${ph}) ORDER BY target, ts`,
+    [`${weekEnd}T00:00:00Z`],
+  )).sort((a, b) => a.target.localeCompare(b.target) || a.ts.localeCompare(b.ts))
+  const actors = await chunkedAll<WeekActor>(
+    env.DB,
+    logins,
+    ph => `SELECT login, followers, star_sum, top_repos, company, location, li_company_url FROM actors WHERE login IN (${ph})`,
+  )
   const { results: replyRows } = await env.DB
     .prepare(
       `SELECT e.login, MIN(sp.ts) ts FROM slack_posts sp JOIN events e ON e.id = sp.event_id
