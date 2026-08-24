@@ -1,12 +1,28 @@
 import { describe, expect, it } from 'vitest'
-import { buildWeeklyOp, weekLabel, weekStartOf } from '../src/weekly'
+import { buildWeeklyOp, week, weekBounds, weekLabel, weekStartOf } from '../src/weekly'
 
+// The boundary is 23:00 Sunday *Pacific*, so the instant it lands on moves with DST and
+// every one of these would be off by 6-8h under the old midnight-UTC scheme.
 describe('weekStartOf', () => {
-  it('maps any ts to its UTC Monday', () => {
-    expect(weekStartOf('2026-08-10T00:00:00Z')).toBe('2026-08-10') // Monday
+  it('maps any ts to its week key', () => {
+    expect(weekStartOf('2026-08-10T12:00:00Z')).toBe('2026-08-10') // Monday midday UTC
     expect(weekStartOf('2026-08-11T14:00:00Z')).toBe('2026-08-10') // Tuesday
-    expect(weekStartOf('2026-08-16T23:59:59Z')).toBe('2026-08-10') // Sunday
-    expect(weekStartOf('2026-08-17T00:00:00Z')).toBe('2026-08-17') // next Monday
+    expect(weekStartOf('2026-08-16T23:59:59Z')).toBe('2026-08-10') // Sunday 4:59pm PDT
+  })
+  it('turns the week over at 23:00 Pacific Sunday, not midnight UTC', () => {
+    expect(weekStartOf('2026-08-17T05:59:59Z')).toBe('2026-08-10') // Sun 10:59pm PDT
+    expect(weekStartOf('2026-08-17T06:00:00Z')).toBe('2026-08-17') // Sun 11:00pm PDT
+    // Monday 00:00-06:00 UTC is still Sunday evening in PT — the old scheme's worst case
+    expect(weekStartOf('2026-08-17T00:00:00Z')).toBe('2026-08-10') // Sun 5pm PDT
+  })
+  it('tracks DST rather than a fixed offset', () => {
+    // PST (UTC-8): 23:00 local is 07:00Z; PDT (UTC-7): 06:00Z
+    expect(weekBounds('2026-08-17')).toEqual({ start: '2026-08-17T06:00:00.000Z', end: '2026-08-24T06:00:00.000Z' })
+    expect(weekBounds('2026-12-14')).toEqual({ start: '2026-12-14T07:00:00.000Z', end: '2026-12-21T07:00:00.000Z' })
+    // Fall-back is 02:00 Sun Nov 1, so that night's 23:00 boundary is already PST
+    expect(weekBounds('2026-11-02')).toEqual({ start: '2026-11-02T07:00:00.000Z', end: '2026-11-09T07:00:00.000Z' })
+    // ...while the Sunday before it is still PDT: the two ends of that week differ
+    expect(weekBounds('2026-10-26')).toEqual({ start: '2026-10-26T06:00:00.000Z', end: '2026-11-02T07:00:00.000Z' })
   })
   it('labels without the year', () => {
     expect(weekLabel('2026-08-10')).toBe('Week of 8/10')
@@ -40,7 +56,7 @@ describe('buildWeeklyOp', () => {
   }
 
   it('groups org-first with repo bullets, flat lines for orgs without org-level activity, then Notable', () => {
-    const { blocks, text } = buildWeeklyOp('2026-08-10', data, {
+    const { blocks, text } = buildWeeklyOp(week('2026-08-10'), data, {
       dashboardUrl: 'https://watchy.oa.dev',
       orgEmoji: { 'marin-community': 'marin-community', 'Open-Athena': 'open-athena' },
     })
@@ -81,7 +97,7 @@ describe('buildWeeklyOp', () => {
 
   it('appends a closed footer with the range, net movement, and dashboard links', () => {
     const withChurn = { ...data, events: [...data.events, ev(4, '2026-08-12T07:00:00Z', 'unstar', 'marin-community/marin', 'quitter')] }
-    const { blocks, text } = buildWeeklyOp('2026-08-10', withChurn, {
+    const { blocks, text } = buildWeeklyOp(week('2026-08-10'), withChurn, {
       dashboardUrl: 'https://gh.oa.dev',
       closed: true,
       weekEnd: '2026-08-17',
@@ -97,7 +113,7 @@ describe('buildWeeklyOp', () => {
   })
 
   it('omits the closed footer while the week is live', () => {
-    const { text } = buildWeeklyOp('2026-08-10', data, { dashboardUrl: 'https://gh.oa.dev' })
+    const { text } = buildWeeklyOp(week('2026-08-10'), data, { dashboardUrl: 'https://gh.oa.dev' })
     expect(text.split('\n').at(-1)).toBe('Notable: MzeroMiko')
   })
 
@@ -108,7 +124,7 @@ describe('buildWeeklyOp', () => {
       events: [ev(1, '2026-08-10T09:00:00Z', 'star', 'marin-community/marin', 'drdh')],
       replyLink: () => null,
     }
-    const { blocks } = buildWeeklyOp('2026-08-10', d2, {})
+    const { blocks } = buildWeeklyOp(week('2026-08-10'), d2, {})
     const bullets = (blocks[0] as any).elements.at(-1).elements
     expect(bullets[0].elements).toEqual([
       { type: 'link', url: 'https://github.com/drdh', text: 'drdh' },

@@ -1,5 +1,5 @@
 import type { Env } from './collect'
-import { finalizeWeeklyOp, weekLabel, weekStartOf } from './weekly'
+import { addDays, finalizeWeeklyOp, weekBounds, weekLabel, weekStartOf } from './weekly'
 
 export interface TargetDelta {
   target: string
@@ -85,19 +85,22 @@ export function renderRollup(s: WeekStats, dashboardUrl?: string): string {
  * short-circuits on the `summaries` dup-check until a new week has closed. */
 export async function buildWeekStats(env: Env, now = new Date()): Promise<WeekStats> {
   const end = weekStartOf(now.toISOString())
-  const start = new Date(new Date(end).getTime() - 7 * 86_400_000).toISOString().slice(0, 10)
+  const start = addDays(end, -7)
   const matches = env.SLACK_MATCHES ?? []
   const where = matches.map(() => '(e.target = ? OR e.target LIKE ?)').join(' OR ')
   const binds = matches.flatMap(m => [m, `${m}/%`])
 
-  const prevStart = new Date(new Date(start).getTime() - 7 * 86_400_000).toISOString().slice(0, 10)
+  const prevStart = addDays(start, -7)
+  // Window instants, not `${date}T00:00:00Z`: the week turns over at 23:00 Pacific
+  const wk = weekBounds(start)
+  const prev = weekBounds(prevStart)
 
   const [deltaRows, notableRows, prevRow] = await env.DB.batch([
     env.DB.prepare(
       `SELECT e.target, e.kind, COUNT(*) n FROM events e
        WHERE e.ts >= ? AND e.ts < ? AND (${where})
        GROUP BY e.target, e.kind`,
-    ).bind(`${start}T00:00:00Z`, `${end}T00:00:00Z`, ...binds),
+    ).bind(wk.start, wk.end, ...binds),
     // Insiders (OA / marin-community members) starring our own repos aren't notable —
     // exclude by org membership and company string ("@Open-Athena" / "Open Athena").
     env.DB.prepare(
@@ -109,10 +112,10 @@ export async function buildWeekStats(env: Env, now = new Date()): Promise<WeekSt
          SELECT 1 FROM events e WHERE e.login = a.login
          AND e.kind IN ('star', 'follow') AND e.ts >= ? AND e.ts < ? AND (${where}))
        ORDER BY a.followers DESC LIMIT 5`,
-    ).bind(`${start}T00:00:00Z`, `${end}T00:00:00Z`, ...binds),
+    ).bind(wk.start, wk.end, ...binds),
     env.DB.prepare(
       `SELECT COUNT(*) n FROM events e WHERE e.ts >= ? AND e.ts < ? AND (${where})`,
-    ).bind(`${prevStart}T00:00:00Z`, `${start}T00:00:00Z`, ...binds),
+    ).bind(prev.start, prev.end, ...binds),
   ])
 
   const byTarget = new Map<string, TargetDelta>()
@@ -144,8 +147,7 @@ export async function weeklySummary(env: Env, now = new Date()): Promise<string 
   // of syncSlack, so the close-out lands above the new week's OP rather than at the next
   // cron hours later), and the common case must cost one indexed lookup, not a week's
   // worth of GROUP BYs.
-  const weekEnd = weekStartOf(now.toISOString())
-  const weekStart = new Date(new Date(weekEnd).getTime() - 7 * 86_400_000).toISOString().slice(0, 10)
+  const weekStart = addDays(weekStartOf(now.toISOString()), -7)
   const dup = await env.DB.prepare('SELECT id FROM summaries WHERE week_start = ?').bind(weekStart).first()
   if (dup) return null
   const stats = await buildWeekStats(env, now)
