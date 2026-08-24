@@ -27,6 +27,15 @@ export interface Event {
   prior_ts?: string | null
 }
 
+/** `/api/days` — per-day rollup behind the feed's day headers. Server-side because the
+ * feed only has a page of events loaded, and a header that says "89 ⭐" is claiming
+ * something about the day, not about the page. */
+export interface DayRollup {
+  day: string
+  actors: number
+  cells: Array<{ kind: Event['kind']; target: string; n: number }>
+}
+
 export interface RunEvent {
   run_id: number
   ts: string
