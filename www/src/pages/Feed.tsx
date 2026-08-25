@@ -7,8 +7,11 @@ import { useWhoami } from '../auth'
 import { ActorCard } from '../components/ActorCard'
 import { Avatar } from '../components/Avatar'
 import { DayHeader } from '../components/DayHeader'
+import { RepoHeader } from '../components/RepoHeader'
 import { Tooltip } from '../components/Tooltip'
 import { TargetLink } from '../target'
+import { datesParam } from '../dates'
+import { targetParam, targetsParam } from '../params'
 import { KIND_EMOJI, KIND_VERB } from '../kinds'
 import { INTERNAL } from '../scope'
 
@@ -34,18 +37,29 @@ const PAGE = 100
 export default function Feed() {
   // Filters + view mode live in the URL (use-prms): ?k=star&t=…&l=…&g
   const [kind, setKind] = useUrlState('k', stringParam(''))
-  const [target, setTarget] = useUrlState('t', stringParam(''))
+  const [target, setTarget] = useUrlState('t', targetParam)
   const [login, setLogin] = useUrlState('l', stringParam(''))
   const [byRepo, setByRepo] = useUrlState('g', boolParam)
   const [details, setDetails] = useUrlState('d', boolParam)
-  // Only *collapsed* days are recorded (`?c=2026-08-24,…`): days default open, so an
-  // empty param is the default view and a shared link carries whatever you folded away.
-  const [collapsedParam, setCollapsedParam] = useUrlState('c', stringParam(''))
-  const closed = new Set((collapsedParam ?? '').split(',').filter(Boolean))
+  // Only *collapsed* days are recorded (`?c=260818-24`): days default open, so an empty
+  // param is the default view and a shared link carries whatever you folded away.
+  const [collapsedDays, setCollapsedDays] = useUrlState('c', datesParam)
+  const closed = new Set(collapsedDays)
   const toggleDay = (d: string) => {
     const next = new Set(closed)
     if (!next.delete(d)) next.add(d)
-    setCollapsedParam([...next].sort().reverse().join(','))
+    setCollapsedDays([...next])
+  }
+  // Bulk collapse only covers the days actually loaded; ones paged in later arrive open
+  const collapseAll = () => setCollapsedDays([...byDay.keys()])
+  const expandAll = () => setCollapsedDays([])
+  // Repo folds are by repo, not by (day, repo) — see RepoHeader
+  const [foldedRepos, setFoldedRepos] = useUrlState('rc', targetsParam)
+  const folded = new Set(foldedRepos)
+  const toggleRepo = (t: string) => {
+    const next = new Set(folded)
+    if (!next.delete(t)) next.add(t)
+    setFoldedRepos([...next])
   }
 
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
@@ -146,8 +160,9 @@ export default function Feed() {
     'feed:kind:unfollow': { label: '🔕 Unfollows only', group: 'Feed filters', handler: () => setKind('unfollow') },
     'feed:group-by-repo': { label: 'Toggle group by repo', group: 'Feed filters', handler: () => setByRepo(!byRepo) },
     'feed:details': { label: 'Toggle details (avatars, names)', group: 'Feed filters', handler: () => setDetails(!details) },
-    'feed:collapse-all': { label: 'Collapse all days', group: 'Feed filters', handler: () => setCollapsedParam([...byDay.keys()].join(',')) },
-    'feed:expand-all': { label: 'Expand all days', group: 'Feed filters', handler: () => setCollapsedParam('') },
+    'feed:collapse-all': { label: 'Collapse all days', group: 'Feed filters', handler: collapseAll },
+    'feed:expand-all': { label: 'Expand all days', group: 'Feed filters', handler: expandAll },
+    'feed:unfold-repos': { label: 'Unfold all repos', group: 'Feed filters', handler: () => setFoldedRepos([]) },
     'feed:target:all': { label: 'All targets', group: 'Feed filters', keywords: ['target'], handler: () => setTarget('') },
     // One action per known target; omnibar-only (the modal would drown in them)
     ...Object.fromEntries(targetOptions.map(t => [`feed:target:${t}`, {
@@ -209,12 +224,26 @@ export default function Feed() {
           <input type="checkbox" checked={details} onChange={e => setDetails(e.target.checked)} />
           details
         </label>
+        <span className="bulk">
+          <button type="button" onClick={collapseAll} disabled={[...byDay.keys()].every(d => closed.has(d))}>▸ all</button>
+          <button type="button" onClick={expandAll} disabled={closed.size === 0}>▾ all</button>
+        </span>
       </div>
       {isLoading && <p className="dim">loading…</p>}
       {error && <p className="error">{String(error)}</p>}
       {[...byDay.entries()].map(([d, dayEvents]) => {
         const shut = closed.has(d)
-        const header = <DayHeader day={d} rollup={rollups.get(d)} closed={shut} showTargets={!byRepo} onToggle={() => toggleDay(d)} />
+        const header = (
+          <DayHeader
+            day={d}
+            rollup={rollups.get(d)}
+            closed={shut}
+            showTargets={!byRepo}
+            onToggle={() => toggleDay(d)}
+            target={target}
+            onTarget={setTarget}
+          />
+        )
         if (shut) return <section key={d}>{header}</section>
         if (!byRepo) {
           return (
@@ -234,11 +263,14 @@ export default function Feed() {
             {header}
             {[...byTarget.entries()].map(([t, evs]) => (
               <div className="repo-group" key={t}>
-                <h3>
-                  <TargetLink target={t} />
-                  <span className="dim"> · {evs.length}</span>
-                </h3>
-                <ul>{evs.map(e => line(e, false))}</ul>
+                <RepoHeader
+                  target={t}
+                  cells={(rollups.get(d)?.cells ?? []).filter(c => c.target === t)}
+                  loaded={evs.length}
+                  closed={folded.has(t)}
+                  onToggle={() => toggleRepo(t)}
+                />
+                {!folded.has(t) && <ul>{evs.map(e => line(e, false))}</ul>}
               </div>
             ))}
           </section>
