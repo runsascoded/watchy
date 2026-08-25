@@ -154,12 +154,45 @@ a { color: var(--link); text-decoration: none;
       border-radius: 6px;
       padding: .3rem .5rem;
     }
+    // Fold every loaded day at once (also on the omnibar: feed:collapse-all / expand-all)
+    .bulk {
+      display: inline-flex; gap: .25rem;
+      button {
+        font: inherit; color: var(--dim); background: var(--card);
+        border: 1px solid var(--border); border-radius: 6px; padding: .3rem .45rem; cursor: pointer;
+        &:hover:not(:disabled) { color: var(--fg); }
+        &:disabled { opacity: .4; cursor: default; }
+      }
+    }
   }
 
   .repo-group { margin: .5rem 0 .7rem .5rem;
-    h3 { margin: 0 0 .1rem; font-size: .88rem; font-weight: 600; }
+    h3 { margin: 0 0 .1rem; font-size: .88rem; font-weight: 600; display: flex; align-items: baseline; gap: .3rem; flex-wrap: wrap; }
+    // Same fold affordance as the day rule, at the repo's weight
+    .repo-stats {
+      font: inherit; font-weight: 400; color: var(--dim); background: none; border: 0; padding: 0;
+      cursor: pointer; font-variant-numeric: tabular-nums;
+      &::before { content: '· '; }
+      &:hover { color: var(--fg); }
+    }
     ul { margin-left: .8rem; }
   }
+
+  // Shared by the day rule (h2.day) and the repo heading (h3) — both fold from a caret
+  .day-toggle {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: baseline;
+    gap: .35rem;
+    &:hover { color: var(--fg); }
+  }
+  // Fixed width so ▸/▾ don't shift what follows sideways on toggle
+  .caret { display: inline-block; width: .7em; font-size: .8em; }
 
   h2 {
     font-size: .95rem;
@@ -171,22 +204,25 @@ a { color: var(--link); text-decoration: none;
     // Day rule doubles as the collapse control: the date keeps its old weight, the
     // stats recede, and the caret is the only thing that moves on toggle
     &.day { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
-    .day-toggle {
-      font: inherit;
-      color: inherit;
-      background: none;
-      border: 0;
-      padding: 0;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: baseline;
-      gap: .35rem;
-      &:hover { color: var(--fg); }
+    // The counts ARE the header's content, so they sit at the date's size and take the
+    // brighter ink; only the separators and the repo breakdown recede.
+    // Inline flow, not flex: a flex container drops the spaces around the ` · `
+    // separators (they'd become anonymous items and get trimmed), and the stats have to
+    // read as one sentence rather than a row of cells.
+    .day-stats {
+      font-size: .9rem; color: var(--dim); font-weight: 400;
+      .n { color: var(--fg); font-weight: 500; font-variant-numeric: tabular-nums; }
+      .chip {
+        font: inherit; color: var(--dim); background: none; cursor: pointer; vertical-align: baseline;
+        border: 1px solid transparent; border-radius: 5px; padding: 0 .25rem;
+        &:hover { color: var(--fg); border-color: var(--border); }
+        &.on { color: var(--fg); border-color: var(--border); background: var(--card); }
+      }
+      .more { cursor: default; text-decoration: underline dotted; text-underline-offset: .2em; }
     }
-    // Fixed width so ▸/▾ don't shift the date sideways on toggle
-    .caret { display: inline-block; width: .7em; font-size: .8em; }
-    .day-stats { font-size: .82rem; color: var(--dim); font-weight: 400; }
   }
+  // One target per line, full `owner/repo` — the chips shorten to the repo name
+  .more-tip { display: flex; flex-direction: column; gap: .1rem; }
 
   ul { list-style: none; margin: 0; padding: 0; }
   li {
