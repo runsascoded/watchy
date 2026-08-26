@@ -16,8 +16,8 @@
 # Staging is Access-gated for free — the `watchy` Access app already lists
 # `*.watchy-internal.pages.dev` — but preview deployments read the *Preview*
 # env vars, a separate set from production's. Run `session-secret.py
-# sync-preview` once to populate them, or /auth/sso 503s and /api/* proxies to
-# the wrong worker.
+# sync-preview` (or `rotate`) once to populate them, or /auth/sso 503s and
+# /api/* proxies to the wrong worker.
 set -euo pipefail
 branch=main
 case "${1:-}" in
