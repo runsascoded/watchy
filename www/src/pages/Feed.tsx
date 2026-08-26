@@ -3,7 +3,7 @@ import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-qu
 import { boolParam, datesParam, stringParam, useUrlState } from 'use-prms'
 import { useActions } from 'use-kbd'
 import { get, type ActorCardFields, type DayRollup, type Event, type TargetCount } from '../api'
-import { useWhoami } from '../auth'
+import { ssoUrl, useWhoami } from '../auth'
 import { ActorCard } from '../components/ActorCard'
 import { Avatar } from '../components/Avatar'
 import { DayHeader } from '../components/DayHeader'
@@ -217,10 +217,19 @@ export default function Feed() {
           <input type="checkbox" checked={byRepo} onChange={e => setByRepo(e.target.checked)} />
           group by repo
         </label>
-        <label className="toggle">
-          <input type="checkbox" checked={details} onChange={e => setDetails(e.target.checked)} />
-          details
-        </label>
+        {/* Toggle and hint share a wrapper so a wrapping filter row can't strand the
+            explanation on the next line, away from the control it explains. */}
+        <span className="detail-toggle">
+          <label className="toggle">
+            <input type="checkbox" checked={details} onChange={e => setDetails(e.target.checked)} />
+            details
+          </label>
+          {/* Signed out, details still buys avatars, but the names behind them are gated —
+              say so where the surprise happens rather than letting it read as a broken toggle. */}
+          {details && INTERNAL && whoami === null && (
+            <a className="linkish" href={ssoUrl(location.pathname + location.search)}>sign in for names</a>
+          )}
+        </span>
         <span className="bulk">
           <button type="button" onClick={collapseAll} disabled={[...byDay.keys()].every(d => closed.has(d))}>▸ all</button>
           <button type="button" onClick={expandAll} disabled={closed.size === 0}>▾ all</button>
