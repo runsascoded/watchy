@@ -6,6 +6,7 @@ import { get, type ActorCardFields, type DayRollup, type Event, type TargetCount
 import { ssoUrl, useWhoami } from '../auth'
 import { ActorCard } from '../components/ActorCard'
 import { Avatar } from '../components/Avatar'
+import { Caret } from '../components/Caret'
 import { DayHeader } from '../components/DayHeader'
 import { RepoHeader } from '../components/RepoHeader'
 import { TargetPicker } from '../components/TargetPicker'
@@ -231,10 +232,10 @@ export default function Feed() {
           )}
         </span>
         <span className="bulk">
-          {/* Same .caret sizing as the day/repo headers — these buttons say which state
-              they put you in, so their glyphs have to read the same way */}
-          <button type="button" onClick={collapseAll} disabled={[...byDay.keys()].every(d => closed.has(d))}><span className="caret">▸</span> all</button>
-          <button type="button" onClick={expandAll} disabled={closed.size === 0}><span className="caret">▾</span> all</button>
+          {/* Same <Caret> as the day/repo headers — these buttons name the state they
+              put you in, so their glyphs have to read identically */}
+          <button type="button" onClick={collapseAll} disabled={[...byDay.keys()].every(d => closed.has(d))}><Caret closed /> all</button>
+          <button type="button" onClick={expandAll} disabled={closed.size === 0}><Caret closed={false} /> all</button>
         </span>
       </div>
       {isLoading && <p className="dim">loading…</p>}

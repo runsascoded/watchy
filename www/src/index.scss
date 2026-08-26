@@ -228,11 +228,10 @@ a { color: var(--link); text-decoration: none;
     gap: .35rem;
     &:hover { color: var(--fg); }
   }
-  // Fixed width so ▸/▾ don't shift what follows sideways on toggle. Sized *up* from the
-  // surrounding text, not down: at .8em the two glyphs were near-indistinguishable, and
-  // this is the control that says whether a day is open — the one thing here worth reading
-  // at a glance. Width covers the wider ▾ so the fixed-width trick still holds.
-  .caret { display: inline-block; width: .9em; font-size: 1.15em; }
+  // Fixed width so ►/▼ don't shift what follows sideways on toggle. These glyphs fill
+  // their em box (see Caret.tsx), so they read at the surrounding size — the earlier ▸/▾
+  // needed 1.15em and still looked faint, because the ink, not the box, was the problem.
+  .caret { display: inline-block; width: .95em; font-size: .9em; }
 
   h2 {
     font-size: .95rem;

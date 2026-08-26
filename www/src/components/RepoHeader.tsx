@@ -1,6 +1,7 @@
 import type { DayRollup } from '../api'
 import { KIND_EMOJI, kindTotals } from '../kinds'
 import { TargetLink } from '../target'
+import { Caret } from './Caret'
 import { Tooltip } from './Tooltip'
 
 /**
@@ -32,7 +33,7 @@ export function RepoHeader({ target, cells, loaded, closed, onToggle }: {
     <h3>
       <Tooltip tip={`${closed ? 'show' : 'hide'} ${target} — in every day`}>
         <button type="button" className="day-toggle" onClick={onToggle} aria-expanded={!closed} aria-label={`${closed ? 'show' : 'hide'} ${target}`}>
-          <span className="caret">{closed ? '▸' : '▾'}</span>
+          <Caret closed={closed} />
         </button>
       </Tooltip>
       <TargetLink target={target} />
