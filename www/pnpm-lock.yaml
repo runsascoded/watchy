@@ -30,8 +30,8 @@ importers:
         specifier: ^0.12.0
         version: 0.12.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       use-prms:
-        specifier: ^0.4.1
-        version: 0.4.1(react@18.3.1)
+        specifier: https://github.com/runsascoded/use-prms#e752920edbf2e54e8e4f337cdf24f8fb4dfb44ab
+        version: https://codeload.github.com/runsascoded/use-prms/tar.gz/e752920edbf2e54e8e4f337cdf24f8fb4dfb44ab(react@18.3.1)
     devDependencies:
       '@testing-library/jest-dom':
         specifier: ^7.0.1
@@ -1133,13 +1133,11 @@ packages:
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
 
-  use-prms@0.4.1:
-    resolution: {integrity: sha512-137eYoyglpP3bnQqU+BDnr4kJnPqkibcSBpjHAIZJugtRjtInRCi+Af+hsk5lElXcIqz+ReEA4me6YrOehg6XA==}
+  use-prms@https://codeload.github.com/runsascoded/use-prms/tar.gz/e752920edbf2e54e8e4f337cdf24f8fb4dfb44ab:
+    resolution: {tarball: https://codeload.github.com/runsascoded/use-prms/tar.gz/e752920edbf2e54e8e4f337cdf24f8fb4dfb44ab}
+    version: 0.4.1-dist.0c2ac7b
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
-    peerDependenciesMeta:
-      react:
-        optional: true
 
   vite@6.4.3:
     resolution: {integrity: sha512-NTKlcQjlAK7MlQoyb6LgaqHc8sso/pVyUJYWMws3jg21uTJw/LddqIFPcPqP6PzpgbIcZyKI85sFE4HBrQDA8A==}
@@ -2198,8 +2196,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  use-prms@0.4.1(react@18.3.1):
-    optionalDependencies:
+  use-prms@https://codeload.github.com/runsascoded/use-prms/tar.gz/e752920edbf2e54e8e4f337cdf24f8fb4dfb44ab(react@18.3.1):
+    dependencies:
       react: 18.3.1
 
   vite@6.4.3(sass@1.101.0):
