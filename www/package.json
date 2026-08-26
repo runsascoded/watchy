@@ -18,7 +18,7 @@
     "react-dom": "^18.3.0",
     "react-router-dom": "^6.28.0",
     "use-kbd": "^0.12.0",
-    "use-prms": "^0.4.1"
+    "use-prms": "https://github.com/runsascoded/use-prms#e752920edbf2e54e8e4f337cdf24f8fb4dfb44ab"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
