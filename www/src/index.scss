@@ -60,11 +60,7 @@ a { color: var(--link); text-decoration: none;
         &:hover { text-decoration: underline; }
       }
     }
-    .whoami { margin-left: auto; font-size: .78rem; display: flex; gap: .5rem; align-items: baseline;
-      .linkish { font: inherit; color: var(--link); background: none; border: none; padding: 0; cursor: pointer;
-        &:hover { text-decoration: underline; }
-      }
-    }
+    .whoami { margin-left: auto; font-size: .78rem; display: flex; gap: .5rem; align-items: baseline; }
   }
 }
 
@@ -124,6 +120,12 @@ a { color: var(--link); text-decoration: none;
   input { accent-color: var(--link); }
 }
 
+// A <button> or <a> that reads as a link, wherever the surrounding size is already right:
+// the header's sign-in / sign-out chip, and the Feed's "sign in for names" hint.
+.linkish { font: inherit; color: var(--link); background: none; border: none; padding: 0; cursor: pointer;
+  &:hover { text-decoration: underline; }
+}
+
 // TargetLink: org avatar standing in for the `org/` prefix
 .org-icon {
   width: 1.05em;
@@ -147,6 +149,10 @@ a { color: var(--link); text-decoration: none;
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: .3rem .5rem;
+    }
+    // `details` toggle + its "sign in for names" hint, kept on one line together
+    .detail-toggle { display: inline-flex; align-items: center; gap: .5rem;
+      .linkish { font-size: .85rem; }
     }
     // Repo combobox: input + × clear, with the match list overlaid below.
     // `position: relative` so the list doesn't push the filter row's second
