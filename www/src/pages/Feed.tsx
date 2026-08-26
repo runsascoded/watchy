@@ -8,6 +8,7 @@ import { ActorCard } from '../components/ActorCard'
 import { Avatar } from '../components/Avatar'
 import { DayHeader } from '../components/DayHeader'
 import { RepoHeader } from '../components/RepoHeader'
+import { TargetPicker } from '../components/TargetPicker'
 import { Tooltip } from '../components/Tooltip'
 import { TargetLink } from '../target'
 import { targetParam, targetsParam } from '../params'
@@ -210,10 +211,7 @@ export default function Feed() {
           <option value="follow">🔔 follow</option>
           <option value="unfollow">🔕 unfollow</option>
         </select>
-        <select value={target} onChange={e => setTarget(e.target.value)}>
-          <option value="">all targets</option>
-          {targetOptions.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
+        <TargetPicker value={target} options={targetOptions} onChange={setTarget} />
         <input placeholder="login contains…" value={login} onChange={e => setLogin(e.target.value)} />
         <label className="toggle">
           <input type="checkbox" checked={byRepo} onChange={e => setByRepo(e.target.checked)} />

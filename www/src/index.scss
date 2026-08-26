@@ -154,6 +154,37 @@ a { color: var(--link); text-decoration: none;
       border-radius: 6px;
       padding: .3rem .5rem;
     }
+    // Repo combobox: input + × clear, with the match list overlaid below.
+    // `position: relative` so the list doesn't push the filter row's second
+    // line down when it opens.
+    .target-picker {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+
+      input { width: 15rem; padding-right: 1.6rem; }
+      .clear {
+        position: absolute; right: .35rem;
+        font: inherit; line-height: 1; color: var(--dim);
+        background: none; border: 0; padding: 0 .2rem; cursor: pointer;
+        &:hover { color: var(--fg); }
+      }
+      .options {
+        position: absolute; top: calc(100% + 2px); left: 0; z-index: 5;
+        margin: 0; padding: .2rem; list-style: none;
+        min-width: 100%; max-height: 15rem; overflow-y: auto;
+        background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+        box-shadow: 0 4px 12px rgb(0 0 0 / .35);
+
+        button {
+          display: block; width: 100%; text-align: left;
+          font: inherit; color: var(--fg); background: none; border: 0;
+          border-radius: 4px; padding: .2rem .4rem; cursor: pointer; white-space: nowrap;
+          &.hi { background: var(--border); }
+        }
+        .empty { padding: .2rem .4rem; }
+      }
+    }
     // Fold every loaded day at once (also on the omnibar: feed:collapse-all / expand-all)
     .bulk {
       display: inline-flex; gap: .25rem;
