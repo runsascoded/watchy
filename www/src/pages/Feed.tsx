@@ -231,8 +231,10 @@ export default function Feed() {
           )}
         </span>
         <span className="bulk">
-          <button type="button" onClick={collapseAll} disabled={[...byDay.keys()].every(d => closed.has(d))}>▸ all</button>
-          <button type="button" onClick={expandAll} disabled={closed.size === 0}>▾ all</button>
+          {/* Same .caret sizing as the day/repo headers — these buttons say which state
+              they put you in, so their glyphs have to read the same way */}
+          <button type="button" onClick={collapseAll} disabled={[...byDay.keys()].every(d => closed.has(d))}><span className="caret">▸</span> all</button>
+          <button type="button" onClick={expandAll} disabled={closed.size === 0}><span className="caret">▾</span> all</button>
         </span>
       </div>
       {isLoading && <p className="dim">loading…</p>}
