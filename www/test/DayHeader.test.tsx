@@ -6,6 +6,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { DayHeader, dayLabel, dayLong } from '../src/components/DayHeader'
 import type { DayRollup } from '../src/api'
+import { CARET_OPEN, CARET_SHUT } from '../src/components/Caret'
 
 const cell = (kind: string, target: string, n: number) => ({ kind, target, n }) as DayRollup['cells'][0]
 
@@ -53,7 +54,7 @@ describe('DayHeader', () => {
     }
     render(<DayHeader day="2026-08-24" rollup={rollup} {...props} />)
     expect(header()).toEqual({
-      button: '▾Mon 08-24',
+      button: `${CARET_OPEN}Mon 08-24`,
       stats: '180 ⭐️ · 3 💔 · 21 🔔 · 190 actors · marin 183 · marin-community 21',
     })
   })
@@ -99,18 +100,18 @@ describe('DayHeader', () => {
   it('says nothing at all about a day too small to summarize', () => {
     const rollup: DayRollup = { day: '2026-08-24', actors: 2, cells: [cell('star', 'o/r', 2)] }
     render(<DayHeader day="2026-08-24" rollup={rollup} {...props} />)
-    expect(header()).toEqual({ button: '▾Mon 08-24', stats: null })
+    expect(header()).toEqual({ button: `${CARET_OPEN}Mon 08-24`, stats: null })
   })
 
   it('always states the size of a collapsed day — nothing else is on screen', () => {
     const rollup: DayRollup = { day: '2026-08-24', actors: 2, cells: [cell('star', 'o/r', 2)] }
     render(<DayHeader day="2026-08-24" rollup={rollup} {...props} closed />)
-    expect(header()).toEqual({ button: '▸Mon 08-24', stats: '2 ⭐️' })
+    expect(header()).toEqual({ button: `${CARET_SHUT}Mon 08-24`, stats: '2 ⭐️' })
   })
 
   it('renders the date alone while the rollup is in flight', () => {
     render(<DayHeader day="2026-08-24" {...props} />)
-    expect(header()).toEqual({ button: '▾Mon 08-24', stats: null })
+    expect(header()).toEqual({ button: `${CARET_OPEN}Mon 08-24`, stats: null })
   })
 
   it('toggles from the whole date button, and exposes the state to a11y', () => {

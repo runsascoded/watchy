@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import type { DayRollup, Event } from '../api'
 import { KIND_EMOJI, kindTotals } from '../kinds'
 import { shortName } from '../target'
+import { Caret } from './Caret'
 import { Tooltip } from './Tooltip'
 
 const TOP_TARGETS = 3
@@ -103,7 +104,7 @@ export function DayHeader({ day, rollup, closed, showTargets, onToggle, target, 
     <h2 className="day">
       <Tooltip tip={dayLong(day, now)}>
         <button type="button" className="day-toggle" onClick={onToggle} aria-expanded={!closed}>
-          <span className="caret">{closed ? '▸' : '▾'}</span>
+          <Caret closed={closed} />
           {dayLabel(day, now)}
         </button>
       </Tooltip>
