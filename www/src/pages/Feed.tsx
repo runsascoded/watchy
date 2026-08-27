@@ -12,6 +12,7 @@ import { RepoHeader } from '../components/RepoHeader'
 import { TargetPicker } from '../components/TargetPicker'
 import { Tooltip } from '../components/Tooltip'
 import { TargetLink } from '../target'
+import { isDayClosed } from '../folds'
 import { targetParam, targetsParam } from '../params'
 import { KIND_EMOJI, KIND_VERB } from '../kinds'
 import { INTERNAL } from '../scope'
@@ -42,18 +43,24 @@ export default function Feed() {
   const [login, setLogin] = useUrlState('l', stringParam(''))
   const [byRepo, setByRepo] = useUrlState('g', boolParam)
   const [details, setDetails] = useUrlState('d', boolParam)
-  // Only *collapsed* days are recorded (`?c=260818-24`): days default open, so an empty
-  // param is the default view and a shared link carries whatever you folded away.
-  const [collapsedDays, setCollapsedDays] = useUrlState('c', datesParam)
-  const closed = new Set(collapsedDays)
+  // `?c=260818-24` records the days that *differ* from the default, so an empty param is
+  // the default view and a shared link carries only what you changed. `?ca` flips the
+  // default from open to closed, which is what "collapse all" has to mean: collapsing
+  // shrinks the page, that pulls the next page in, and days arriving after the click must
+  // obey the click too — otherwise the button appears to load fresh work undone. With `ca`
+  // set, `c` lists the days you re-opened.
+  const [closedByDefault, setClosedByDefault] = useUrlState('ca', boolParam)
+  const [exceptDays, setExceptDays] = useUrlState('c', datesParam)
+  const except = new Set(exceptDays)
+  const isClosed = (d: string) => isDayClosed(d, except, closedByDefault)
   const toggleDay = (d: string) => {
-    const next = new Set(closed)
+    const next = new Set(except)
     if (!next.delete(d)) next.add(d)
-    setCollapsedDays([...next])
+    setExceptDays([...next])
   }
-  // Bulk collapse only covers the days actually loaded; ones paged in later arrive open
-  const collapseAll = () => setCollapsedDays([...byDay.keys()])
-  const expandAll = () => setCollapsedDays([])
+  // Both setters land: use-prms re-reads the live URL per write, and replaceState is sync.
+  const collapseAll = () => { setClosedByDefault(true); setExceptDays([]) }
+  const expandAll = () => { setClosedByDefault(false); setExceptDays([]) }
   // Repo folds are by repo, not by (day, repo) — see RepoHeader
   const [foldedRepos, setFoldedRepos] = useUrlState('rc', targetsParam)
   const folded = new Set(foldedRepos)
@@ -234,14 +241,16 @@ export default function Feed() {
         <span className="bulk">
           {/* Same <Caret> as the day/repo headers — these buttons name the state they
               put you in, so their glyphs have to read identically */}
-          <button type="button" onClick={collapseAll} disabled={[...byDay.keys()].every(d => closed.has(d))}><Caret closed /> all</button>
-          <button type="button" onClick={expandAll} disabled={closed.size === 0}><Caret closed={false} /> all</button>
+          {/* Each button is spent once the view already matches what it would do —
+              which, with `ca` in play, means "default is X and nothing differs from it" */}
+          <button type="button" onClick={collapseAll} disabled={closedByDefault && except.size === 0}><Caret closed /> all</button>
+          <button type="button" onClick={expandAll} disabled={!closedByDefault && except.size === 0}><Caret closed={false} /> all</button>
         </span>
       </div>
       {isLoading && <p className="dim">loading…</p>}
       {error && <p className="error">{String(error)}</p>}
       {[...byDay.entries()].map(([d, dayEvents]) => {
-        const shut = closed.has(d)
+        const shut = isClosed(d)
         const header = (
           <DayHeader
             day={d}

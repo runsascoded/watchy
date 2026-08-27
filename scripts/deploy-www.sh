@@ -18,6 +18,10 @@
 # env vars, a separate set from production's. Run `session-secret.py
 # sync-preview` (or `rotate`) once to populate them, or /auth/sso 503s and
 # /api/* proxies to the wrong worker.
+#
+# Pages Functions bind env vars at DEPLOY time, so any `session-secret.py` write
+# only takes effect here: after a rotation, deploy production AND staging, or
+# that environment keeps signing cookies the worker will reject.
 set -euo pipefail
 branch=main
 case "${1:-}" in

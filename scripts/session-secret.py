@@ -20,6 +20,12 @@ only durable copy — without it, adding a fourth consumer later (a `.dev.vars`
 for `wrangler pages dev`, another worker, another Pages project) means another
 rotation, and another forced re-login for everyone.
 
+Writing either Pages environment is only half the job: a Pages Function binds
+its env vars at deploy time, so the change lands when you next deploy that
+environment. The worker reads its secret per request, so between the two the
+site is signing with one value and verifying against another — /auth/sso keeps
+returning 200 and every session it mints is rejected. Deploy right after.
+
 It deliberately does NOT live in `.envrc`: nothing local consumes it as an env
 var, and that file gets read wholesale often enough that adding a secret to it
 is pure exposure.
@@ -166,8 +172,14 @@ def rotate(no_1password: bool, token_var: str, yes: bool) -> None:
     put_worker(tok, secret)
     put_pages(tok, 'production', secret)
     put_pages(tok, 'preview', secret, 'https://watchy.open-athena.workers.dev')
-    err('\nRotated. Redeploy is NOT required (both read the value at request time),')
-    err('but existing sessions are dead — visit /auth/sso to mint a fresh one.')
+    err('\nRotated. Now REDEPLOY both Pages environments:')
+    err('  scripts/deploy-www.sh       # production, gh.oa.dev')
+    err('  scripts/deploy-www.sh -s    # staging')
+    err('A Pages Function binds its env vars at deploy time, so a deployment that predates')
+    err('the rotation keeps signing cookies with the old value, while the worker — which')
+    err('reads its secret per request — rejects every one of them. /auth/sso still returns')
+    err('200, so the only symptom is that logging in leaves you logged out.')
+    err('Existing sessions are dead regardless — visit /auth/sso for a fresh one.')
 
 
 if __name__ == '__main__':
