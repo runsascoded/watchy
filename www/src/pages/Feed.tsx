@@ -12,7 +12,7 @@ import { RepoHeader } from '../components/RepoHeader'
 import { TargetPicker } from '../components/TargetPicker'
 import { Tooltip } from '../components/Tooltip'
 import { TargetLink } from '../target'
-import { isDayClosed } from '../folds'
+import { isDayClosed, visibleDays } from '../folds'
 import { targetParam, targetsParam } from '../params'
 import { KIND_EMOJI, KIND_VERB } from '../kinds'
 import { INTERNAL } from '../scope'
@@ -109,23 +109,6 @@ export default function Feed() {
     queryFn: () => get<{ stars: TargetCount[]; follows: TargetCount[] }>('/api/targets'),
   })
 
-  // Load-more sentinel: fetch the next page as it nears the viewport.
-  //
-  // Re-created per page rather than observed once, because IntersectionObserver only
-  // fires on *changes*: a page that doesn't grow past the sentinel leaves it silently
-  // intersecting and paging stops. Collapsing days makes that the normal case — the page
-  // barely grows — so the observer has to be re-armed to re-check. Terminates when the
-  // headers finally push the sentinel out of range, or the history runs out.
-  const sentinelRef = useRef<HTMLDivElement>(null)
-  const pagesLoaded = data?.pages.length ?? 0
-  useEffect(() => {
-    const el = sentinelRef.current
-    if (!el || !hasNextPage || isFetchingNextPage) return
-    const obs = new IntersectionObserver(es => { if (es.some(x => x.isIntersecting)) fetchNextPage() }, { rootMargin: '600px' })
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage, pagesLoaded])
-
   const events = data?.pages.flatMap(p => p.events) ?? []
   const byDay = new Map<string, Event[]>()
   for (const e of events) {
@@ -133,6 +116,34 @@ export default function Feed() {
     if (!byDay.has(d)) byDay.set(d, [])
     byDay.get(d)!.push(e)
   }
+
+  // The day list comes from the rollups, not from the loaded events: `/api/days` returns the
+  // whole history under the same filters, so every day header is available immediately and a
+  // collapsed day never has to be paged to. `byDay` still contributes, in case a day's first
+  // event lands between the two queries.
+  //
+  // Events arrive newest-first, so a day is fully loaded once the stream has passed it.
+  const oldestLoaded = events.length ? day(events[events.length - 1].ts) : null
+  const dayLoaded = (d: string) => !hasNextPage || (oldestLoaded !== null && oldestLoaded < d)
+  const allDays = [...new Set([...rollups.keys(), ...byDay.keys()])].sort().reverse()
+  const { shown, frontier } = visibleDays(allDays, isClosed, dayLoaded)
+
+  // Load-more sentinel: fetch the next page as it nears the viewport, but only while a
+  // frontier exists — with nothing open, no page would put a row on screen.
+  //
+  // Re-created per page rather than observed once, because IntersectionObserver only fires
+  // on *changes*: a page that doesn't grow past the sentinel leaves it silently intersecting
+  // and paging stops, so the observer has to be re-armed to re-check. Terminates when the
+  // frontier closes, the headers push the sentinel out of range, or history runs out.
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const pagesLoaded = data?.pages.length ?? 0
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || !frontier || !hasNextPage || isFetchingNextPage) return
+    const obs = new IntersectionObserver(es => { if (es.some(x => x.isIntersecting)) fetchNextPage() }, { rootMargin: '600px' })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [fetchNextPage, frontier, hasNextPage, isFetchingNextPage, pagesLoaded])
 
   // Details mode gives everyone avatars — the login is already shown and already links to the
   // profile, so the picture is not new information. Display names and the hovercard come from
@@ -249,7 +260,8 @@ export default function Feed() {
       </div>
       {isLoading && <p className="dim">loading…</p>}
       {error && <p className="error">{String(error)}</p>}
-      {[...byDay.entries()].map(([d, dayEvents]) => {
+      {shown.map(d => {
+        const dayEvents = byDay.get(d) ?? []
         const shut = isClosed(d)
         const header = (
           <DayHeader
