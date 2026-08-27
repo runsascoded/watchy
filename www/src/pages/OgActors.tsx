@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { get } from '../api'
-import { KIND_EMOJI } from '../components/EventTimeline'
+import { kindEmoji } from '../kinds'
 import { OgHeader } from '../components/OgHeader'
 import { isInsider, scoreActor } from './Actors'
 import { type Actor } from '../api'
@@ -59,7 +59,7 @@ export default function OgActors() {
                 </td>
                 <td className="num">{fmtK(a.followers)}{a.bsky_followers != null && a.bsky_followers > 0 && <span className="dim"> +{fmtK(a.bsky_followers)} 🦋</span>}</td>
                 <td className="where">{where}</td>
-                <td>{latest && <>{KIND_EMOJI[latest.kind]} {latest.target.split('/').pop()} <span className="dim">{age(latest.ts)}</span></>}</td>
+                <td>{latest && <>{kindEmoji(latest.kind)} {latest.target.split('/').pop()} <span className="dim">{age(latest.ts)}</span></>}</td>
                 <td className="num">{s.n}</td>
               </tr>
             )

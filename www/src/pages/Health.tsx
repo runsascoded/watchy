@@ -1,7 +1,8 @@
 import { Fragment, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { autoUpdate, flip, offset, shift, useFloating } from '@floating-ui/react'
-import EventTimeline, { KIND_EMOJI } from '../components/EventTimeline'
+import EventTimeline from '../components/EventTimeline'
+import { kindEmoji } from '../kinds'
 import { get, type Health as HealthData, type Run } from '../api'
 
 function ago(iso: string, now: string): string {
@@ -55,7 +56,7 @@ function RunTT({ r, now }: { r: Run; now: string }) {
     <>
       <div>{parts.join(' · ')}</div>
       {r.events?.map((e, i) => (
-        <div key={i}>{KIND_EMOJI[e.kind]} {e.login} → {e.target}</div>
+        <div key={i}>{kindEmoji(e.kind)} {e.login} → {e.target}</div>
       ))}
     </>
   )

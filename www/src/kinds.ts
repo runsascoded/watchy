@@ -1,14 +1,26 @@
 import type { Event } from './api'
 
-// Lifted out of pages/Feed.tsx so the day headers render the same glyphs as the lines
-// under them. (There are older copies in components/EventTimeline.tsx and pages/Actors.tsx
-// using a bare ⭐ rather than ⭐️ — not consolidated here, since changing what the other
-// pages render isn't this change's business.)
+// The one definition, for every surface: feed lines, day and repo headers, the Health
+// timeline, the Actors table, and the OG cards. Two of those used to carry their own copy,
+// with a bare ⭐ instead of ⭐️ — the variation selector is what forces emoji presentation,
+// so the same event rendered as a flat glyph on one page and a color one on another.
+// `scripts/gen-pfp.py` keeps a fourth copy by necessity (different language, and it
+// rasterizes the glyph rather than rendering it); keep it in step by hand.
 export const KIND_EMOJI: Record<Event['kind'], string> = {
   star: '⭐️',
   unstar: '💔',
   follow: '🔔',
   unfollow: '🔕',
+}
+
+/** Emoji for a kind that isn't statically known to be one: the Health timeline, the Actors
+ * table and the OG cards read `kind` off row types that declare it as a bare string. Falls
+ * back to the raw value, so an unrecognized kind shows up rather than rendering blank.
+ *
+ * KIND_EMOJI itself stays keyed to the union — that is what makes adding a fifth kind a
+ * type error here instead of a silent gap in the feed. */
+export function kindEmoji(kind: string): string {
+  return KIND_EMOJI[kind as Event['kind']] ?? kind
 }
 
 export const KIND_VERB: Record<Event['kind'], string> = {
