@@ -48,17 +48,3 @@ export function visibleDays(
   }
   return { shown, frontier }
 }
-
-/**
- * Could any day be open? If not, the event query has nothing to fetch for — every header
- * on screen comes from `/api/days` — so it should not run at all.
- *
- * Deliberately answered from URL state alone, not from the day list: it gates the query
- * whose results the day list is partly built from, and reading `?ca`/`?c` is synchronous on
- * first render, so this costs nothing and cannot deadlock. It is conservative in one
- * direction — with the default open and every known day listed as an exception it still
- * says yes — which only means fetching a page that turns out to be unused.
- */
-export function anyDayOpen(except: Set<string>, closedByDefault: boolean): boolean {
-  return !closedByDefault || except.size > 0
-}
