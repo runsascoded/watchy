@@ -1,7 +1,9 @@
 name: CI
 on:
   push:
-    branches: [main]
+    # `main` is the fork point; the work happens on `oa` (internal instance) and `rw`
+    # (public reference). Listing only `main` meant CI last ran on a push in August.
+    branches: [main, oa, rw]
   pull_request:
 jobs:
   py:
@@ -43,4 +45,7 @@ jobs:
       with:
         node-version: 22
     - run: pnpm install --frozen-lockfile
+    # `build` is `tsc -b && vite build`, so it type-checks too — but it never ran the
+    # suite, which is why the FE tests only ever ran on a laptop.
     - run: pnpm build
+    - run: pnpm test
