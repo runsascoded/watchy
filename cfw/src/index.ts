@@ -83,11 +83,21 @@ function json(data: unknown, status = 200): Response {
   })
 }
 
-function keyGate(req: Request, env: Env): Response | null {
-  if (env.MANUAL_CHECK_KEY) {
-    const key = new URL(req.url).searchParams.get('key')
-    if (key !== env.MANUAL_CHECK_KEY) return new Response('forbidden\n', { status: 403 })
+/**
+ * Gate for the endpoints that *act*: `/check` burns GitHub quota and writes D1,
+ * `/weekly-refresh` rewrites a live Slack thread, `/test-pushover` sends a push.
+ *
+ * Fails CLOSED. This used to skip the check whenever `MANUAL_CHECK_KEY` was unset, which
+ * reads as "unconfigured means open" — and that is exactly what happened: the OA worker was
+ * stood up without the secret, so all four endpoints answered anyone on the public
+ * workers.dev host. An unset key now means unusable, not unguarded.
+ */
+export function keyGate(req: Request, env: Env): Response | null {
+  if (!env.MANUAL_CHECK_KEY) {
+    return new Response('manual endpoints are not configured (MANUAL_CHECK_KEY unset)\n', { status: 503 })
   }
+  const key = new URL(req.url).searchParams.get('key')
+  if (key !== env.MANUAL_CHECK_KEY) return new Response('forbidden\n', { status: 403 })
   return null
 }
 
