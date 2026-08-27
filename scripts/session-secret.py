@@ -34,98 +34,25 @@ is pure exposure.
 preview env from the stored value (or a prompt). Neither takes the secret as an
 argument, so it stays out of argv and shell history.
 """
-import json
-import os
-import sys
-from functools import partial
 from getpass import getpass
 from secrets import token_urlsafe
-from subprocess import run
 
-import requests
 from click import group, option
 
-err = partial(print, file=sys.stderr)
+from cfsec import OP_VAULT, err, op_get, op_put, put_pages, put_worker, token
 
-ACCOUNT = '74981a43be0de7712369306c7b19133d'
-API = f'https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}'
 PROJECT = 'watchy-internal'
 SCRIPT = 'watchy'
 KEY = 'SESSION_SECRET'
-OP_VAULT = 'Employee'
 OP_ITEM = 'watchy SESSION_SECRET'
-OP_FIELD = {'id': 'password', 'type': 'CONCEALED', 'purpose': 'PASSWORD', 'label': 'password'}
 
 
-def token(token_var: str) -> str:
-    tok = os.environ.get(token_var)
-    if not tok:
-        raise SystemExit(f"${token_var} unset — run under `direnv exec .`")
-    return tok
-
-
-def check(res: requests.Response, what: str) -> dict:
-    if not res.ok:
-        raise SystemExit(f"{what}: HTTP {res.status_code} {res.text[:300]}")
-    err(f"  ✓ {what}")
-    return res.json()['result']
-
-
-def put_pages(tok: str, env: str, secret: str, worker_origin: str | None = None) -> None:
+def write_pages(tok: str, env: str, secret: str, worker_origin: str | None = None) -> None:
     """Write the secret (and optionally WORKER_ORIGIN) into one Pages environment."""
     env_vars: dict[str, dict[str, str]] = {KEY: {'type': 'secret_text', 'value': secret}}
     if worker_origin:
         env_vars['WORKER_ORIGIN'] = {'type': 'plain_text', 'value': worker_origin}
-    res = requests.patch(
-        f'{API}/pages/projects/{PROJECT}',
-        headers={'Authorization': f'Bearer {tok}'},
-        json={'deployment_configs': {env: {'env_vars': env_vars}}},
-    )
-    check(res, f'pages {PROJECT} {env}: {", ".join(sorted(env_vars))}')
-
-
-def op(*args: str, **kw) -> tuple[int, str, str]:
-    res = run(['op', *args], capture_output=True, text=True, **kw)
-    return res.returncode, res.stdout, res.stderr
-
-
-def op_get() -> str | None:
-    """The stored secret, or None if 1Password has no item for it."""
-    code, out, _ = op('item', 'get', OP_ITEM, '--vault', OP_VAULT, '--format', 'json', '--reveal')
-    if code != 0:
-        return None
-    values = [f['value'] for f in json.loads(out)['fields'] if f.get('id') == 'password']
-    return values[0] if values else None
-
-
-def op_put(secret: str) -> None:
-    """Create or update the 1Password item, via a piped JSON template (`op`'s
-    own advice for sensitive values: assignment statements land in argv)."""
-    code, out, _ = op('item', 'get', OP_ITEM, '--vault', OP_VAULT, '--format', 'json')
-    if code == 0:
-        item = json.loads(out)
-        fields = [f for f in item['fields'] if f.get('id') == 'password']
-        if fields:
-            fields[0]['value'] = secret
-        else:
-            item['fields'].append(OP_FIELD | {'value': secret})
-        cmd, payload = ['item', 'edit', item['id'], '--vault', OP_VAULT], item
-    else:
-        cmd = ['item', 'create', '-', '--vault', OP_VAULT, '--title', OP_ITEM]
-        payload = {'title': OP_ITEM, 'category': 'PASSWORD', 'fields': [OP_FIELD | {'value': secret}]}
-    code, _, stderr = op(*cmd, input=json.dumps(payload))
-    if code != 0:
-        raise SystemExit(f"1Password: {stderr.strip()[:300]}")
-    err(f'  ✓ 1Password {OP_VAULT}/{OP_ITEM}')
-
-
-def put_worker(tok: str, secret: str) -> None:
-    res = requests.put(
-        f'{API}/workers/scripts/{SCRIPT}/secrets',
-        headers={'Authorization': f'Bearer {tok}'},
-        json={'name': KEY, 'text': secret, 'type': 'secret_text'},
-    )
-    check(res, f'worker {SCRIPT}: {KEY}')
+    put_pages(tok, PROJECT, env, env_vars)
 
 
 @group
@@ -140,14 +67,14 @@ def main() -> None:
 def sync_preview(worker_origin: str, no_1password: bool, token_var: str) -> None:
     """Copy the stored SESSION_SECRET into the Preview environment."""
     tok = token(token_var)
-    secret = None if no_1password else op_get()
+    secret = None if no_1password else op_get(OP_ITEM)
     if secret:
         err(f'  ✓ read {OP_VAULT}/{OP_ITEM}')
     else:
         secret = getpass(f'{KEY} (must match production): ')
     if not secret:
         raise SystemExit('empty secret, aborting')
-    put_pages(tok, 'preview', secret, worker_origin)
+    write_pages(tok, 'preview', secret, worker_origin)
 
 
 @main.command
@@ -168,10 +95,10 @@ def rotate(no_1password: bool, token_var: str, yes: bool) -> None:
     # rotation can replace. Among those three the order is moot — logins fail
     # until all agree, and that window is a couple of seconds.
     if not no_1password:
-        op_put(secret)
-    put_worker(tok, secret)
-    put_pages(tok, 'production', secret)
-    put_pages(tok, 'preview', secret, 'https://watchy.open-athena.workers.dev')
+        op_put(OP_ITEM, secret)
+    put_worker(tok, SCRIPT, KEY, secret)
+    write_pages(tok, 'production', secret)
+    write_pages(tok, 'preview', secret, 'https://watchy.open-athena.workers.dev')
     err('\nRotated. Now REDEPLOY both Pages environments:')
     err('  scripts/deploy-www.sh       # production, gh.oa.dev')
     err('  scripts/deploy-www.sh -s    # staging')
