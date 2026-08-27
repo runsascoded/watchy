@@ -12,7 +12,7 @@ import { RepoHeader } from '../components/RepoHeader'
 import { TargetPicker } from '../components/TargetPicker'
 import { Tooltip } from '../components/Tooltip'
 import { TargetLink } from '../target'
-import { anyDayOpen, isDayClosed, visibleDays } from '../folds'
+import { isDayClosed, visibleDays } from '../folds'
 import { targetParam, targetsParam } from '../params'
 import { dayRepos } from '../repos'
 import { KIND_EMOJI, KIND_VERB } from '../kinds'
@@ -85,15 +85,31 @@ export default function Feed() {
       return get<{ events: Event[] }>(`/api/events?${params}`)
     },
     initialPageParam: null as null | { ts: string; id: number },
-    // Nothing open means nothing to fetch: with `?ca` and no exceptions every header comes
-    // from `/api/days`. Opening a day flips this back on, and paging walks the cursor from
-    // the top until it reaches that day — the cost of a single event stream, unchanged.
-    enabled: anyDayOpen(except, closedByDefault),
+    // The cursor stream backs the scrolling view only. Under `?ca` the open days are named,
+    // so they are fetched directly below — walking the stream to reach one cost a request
+    // per 100 rows (nine, and 896 rows, to show 2026-08-25's 365).
+    enabled: !closedByDefault,
     getNextPageParam: last => {
       const tail = last.events[last.events.length - 1]
       return last.events.length === PAGE ? { ts: tail.ts, id: tail.id } : undefined
     },
   })
+  // `?ca` names exactly which days are open, so ask for those days and nothing else — one
+  // request, however far back they are. `limit` is the API's ceiling: no day in this data
+  // approaches it, and a day that did would be truncated the same way the stream truncates.
+  const openDays = closedByDefault ? [...except].sort().reverse() : []
+  const { data: openDayData, isLoading: openDaysLoading, error: openDaysError } = useQuery({
+    queryKey: ['events-days', kind, target, login, openDays],
+    queryFn: () => {
+      const params = new URLSearchParams({ days: openDays.join(','), limit: '5000' })
+      if (kind) params.set('kind', kind)
+      if (target) params.set('target', target)
+      if (login) params.set('login', login)
+      return get<{ events: Event[] }>(`/api/events?${params}`)
+    },
+    enabled: openDays.length > 0,
+  })
+
   // Day headers summarize the whole day, so the totals come from the server — the loaded
   // pages only ever hold a prefix of a busy day (see api.ts `DayRollup`). Same filters as
   // the event query, so the header always describes the rows below it.
@@ -114,7 +130,7 @@ export default function Feed() {
     queryFn: () => get<{ stars: TargetCount[]; follows: TargetCount[] }>('/api/targets'),
   })
 
-  const events = data?.pages.flatMap(p => p.events) ?? []
+  const events = closedByDefault ? (openDayData?.events ?? []) : (data?.pages.flatMap(p => p.events) ?? [])
   const byDay = new Map<string, Event[]>()
   for (const e of events) {
     const d = day(e.ts)
@@ -129,7 +145,9 @@ export default function Feed() {
   //
   // Events arrive newest-first, so a day is fully loaded once the stream has passed it.
   const oldestLoaded = events.length ? day(events[events.length - 1].ts) : null
-  const dayLoaded = (d: string) => !hasNextPage || (oldestLoaded !== null && oldestLoaded < d)
+  // Under `?ca` nothing waits on paging — a collapsed day needs no rows and an open one
+  // arrives whole — so there is no frontier, and no sentinel.
+  const dayLoaded = (d: string) => closedByDefault || !hasNextPage || (oldestLoaded !== null && oldestLoaded < d)
   const allDays = [...new Set([...rollups.keys(), ...byDay.keys()])].sort().reverse()
   const { shown, frontier } = visibleDays(allDays, isClosed, dayLoaded)
 
@@ -263,8 +281,8 @@ export default function Feed() {
           <button type="button" onClick={expandAll} disabled={!closedByDefault && except.size === 0}><Caret closed={false} /> all</button>
         </span>
       </div>
-      {isLoading && <p className="dim">loading…</p>}
-      {error && <p className="error">{String(error)}</p>}
+      {(closedByDefault ? openDaysLoading : isLoading) && <p className="dim">loading…</p>}
+      {(error || openDaysError) && <p className="error">{String(error ?? openDaysError)}</p>}
       {shown.map(d => {
         const dayEvents = byDay.get(d) ?? []
         const shut = isClosed(d)
@@ -334,10 +352,10 @@ export default function Feed() {
       })}
       {/* Keyed off the day list, not the loaded events: with nothing open there are no
           events by design, and "no events match" under 784 headers would be a lie. */}
-      {!isLoading && dayData && shown.length === 0 && <p className="dim">no events match</p>}
+      {!isLoading && !openDaysLoading && dayData && shown.length === 0 && <p className="dim">no events match</p>}
       {/* No frontier means the list is complete — whether paging exhausted the stream or
           everything is collapsed and the rollups already covered it. */}
-      {!isLoading && frontier === null && shown.length > 0 && <p className="dim">— end of history —</p>}
+      {!isLoading && !openDaysLoading && frontier === null && shown.length > 0 && <p className="dim">— end of history —</p>}
     </div>
   )
 }

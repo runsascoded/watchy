@@ -103,9 +103,16 @@ export function keyGate(req: Request, env: Env): Response | null {
 
 const EVENT_KINDS = ['star', 'unstar', 'follow', 'unfollow']
 
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/** The ISO day after `day`, as the exclusive upper bound of a day's timestamps. */
+function nextDay(day: string): string {
+  return new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
+}
+
 /** The feed's filter clause, shared by `/api/events` and `/api/days` — the day headers
  * summarize exactly the rows the feed is listing, so both must filter identically. */
-function eventFilters(url: URL): { wheres: string[]; binds: (string | number)[] } | Response {
+export function eventFilters(url: URL): { wheres: string[]; binds: (string | number)[] } | Response {
   const wheres: string[] = []
   const binds: (string | number)[] = []
   const target = url.searchParams.get('target')
@@ -117,6 +124,17 @@ function eventFilters(url: URL): { wheres: string[]; binds: (string | number)[] 
     wheres.push('kind = ?'); binds.push(kind)
   }
   if (login) { wheres.push('login LIKE ?'); binds.push(`%${login}%`) }
+  // ?days=2026-08-25,2026-08-24 — the feed's collapsed mode wants specific days, and
+  // walking the global stream back to one costs a request per 100 events (reaching
+  // 2026-08-25 took nine, for 896 rows to show 365). Half-open ranges rather than
+  // substr(ts,1,10), so this rides the `events_ts` index instead of scanning.
+  const days = url.searchParams.get('days')?.split(',').filter(Boolean) ?? []
+  if (days.length) {
+    const bad = days.filter(d => !DAY_RE.test(d))
+    if (bad.length) return json({ error: `days must be YYYY-MM-DD: ${bad.join(', ')}` }, 400)
+    wheres.push(`(${days.map(() => '(ts >= ? AND ts < ?)').join(' OR ')})`)
+    for (const d of days) binds.push(d, nextDay(d))
+  }
   // Scope filter (site flavors are owner-disjoint): ?owners=a,b keeps events whose
   // target is an owner or one of its repos; ?exclude=1 inverts (public flavor)
   const owners = url.searchParams.get('owners')?.split(',').filter(Boolean) ?? []
