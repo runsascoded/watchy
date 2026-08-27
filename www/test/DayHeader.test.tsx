@@ -6,16 +6,19 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { DayHeader, dayLabel, dayLong } from '../src/components/DayHeader'
 import type { DayRollup } from '../src/api'
-import { CARET_OPEN, CARET_SHUT } from '../src/components/Caret'
 
 const cell = (kind: string, target: string, n: number) => ({ kind, target, n }) as DayRollup['cells'][0]
 
-/** The header's two pieces: the caret+date button, and the stats span (absent when the
- * day has nothing worth summarizing). Read separately — the gap between them is CSS. */
-function header(): { button: string; stats: string | null } {
+/** The header's three pieces: the date button, whether its caret is pointing down, and the
+ * stats span (absent when the day has nothing worth summarizing). Read separately — the gap
+ * between them is CSS. The caret is an SVG, so `open` reads the state it depicts rather
+ * than any text; `aria-expanded` is asserted on its own below. */
+function header(): { button: string; open: boolean; stats: string | null } {
   const h = screen.getByRole('heading')
+  const btn = h.querySelector('button')!
   return {
-    button: h.querySelector('button')!.textContent!,
+    button: btn.textContent!,
+    open: !btn.querySelector('.caret')!.classList.contains('shut'),
     stats: h.querySelector('.day-stats')?.textContent ?? null,
   }
 }
@@ -54,7 +57,8 @@ describe('DayHeader', () => {
     }
     render(<DayHeader day="2026-08-24" rollup={rollup} {...props} />)
     expect(header()).toEqual({
-      button: `${CARET_OPEN}Mon 08-24`,
+      button: 'Mon 08-24',
+      open: true,
       stats: '180 ⭐️ · 3 💔 · 21 🔔 · 190 actors · marin 183 · marin-community 21',
     })
   })
@@ -100,18 +104,18 @@ describe('DayHeader', () => {
   it('says nothing at all about a day too small to summarize', () => {
     const rollup: DayRollup = { day: '2026-08-24', actors: 2, cells: [cell('star', 'o/r', 2)] }
     render(<DayHeader day="2026-08-24" rollup={rollup} {...props} />)
-    expect(header()).toEqual({ button: `${CARET_OPEN}Mon 08-24`, stats: null })
+    expect(header()).toEqual({ button: 'Mon 08-24', open: true, stats: null })
   })
 
   it('always states the size of a collapsed day — nothing else is on screen', () => {
     const rollup: DayRollup = { day: '2026-08-24', actors: 2, cells: [cell('star', 'o/r', 2)] }
     render(<DayHeader day="2026-08-24" rollup={rollup} {...props} closed />)
-    expect(header()).toEqual({ button: `${CARET_SHUT}Mon 08-24`, stats: '2 ⭐️' })
+    expect(header()).toEqual({ button: 'Mon 08-24', open: false, stats: '2 ⭐️' })
   })
 
   it('renders the date alone while the rollup is in flight', () => {
     render(<DayHeader day="2026-08-24" {...props} />)
-    expect(header()).toEqual({ button: `${CARET_OPEN}Mon 08-24`, stats: null })
+    expect(header()).toEqual({ button: 'Mon 08-24', open: true, stats: null })
   })
 
   it('toggles from the whole date button, and exposes the state to a11y', () => {

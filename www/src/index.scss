@@ -222,10 +222,19 @@ a { color: var(--link); text-decoration: none;
     gap: .35rem;
     &:hover { color: var(--fg); }
   }
-  // Fixed width so ►/▼ don't shift what follows sideways on toggle. These glyphs fill
-  // their em box (see Caret.tsx), so they read at the surrounding size — the earlier ▸/▾
-  // needed 1.15em and still looked faint, because the ink, not the box, was the problem.
-  .caret { display: inline-block; width: .95em; font-size: .9em; }
+  // One <path> rotated for the closed state (see Caret.tsx), so both states are the same
+  // shape at the same size — no font metrics involved, and nothing shifts sideways on
+  // toggle. Sized in em so it tracks whatever heading it sits in.
+  .caret {
+    width: .8em; height: .8em; flex: none;
+    fill: currentColor;
+    // `align-self` centers it in the flex toggles (which align on baseline, where an SVG
+    // sits on its bottom edge); `vertical-align` does the same job in the inline bulk buttons.
+    align-self: center; vertical-align: -.1em;
+    transition: transform .12s ease;
+    &.shut { transform: rotate(-90deg); }
+    @media (prefers-reduced-motion: reduce) { transition: none; }
+  }
 
   h2 {
     font-size: .95rem;

@@ -1,16 +1,22 @@
 /**
- * The fold indicator, shared by day headers, repo headers, and the bulk ▼/► all buttons —
+ * The fold indicator, shared by day headers, repo headers, and the bulk ▼/▶ all buttons —
  * one definition so a control and the state it produces can't drift apart.
  *
- * ► / ▼ (U+25BA / U+25BC), not the small ▸ / ▾ (U+25B8 / U+25BE): the small pair inks a
- * fraction of its em box, so at header size the open and closed states were easy to
- * confuse, and scaling the font up only grew the line box around the same thin glyph.
- * Neither of these has an emoji presentation — unlike ▶ (U+25B6), which renders as a
- * color ▶️ on some platforms — so they stay flat text everywhere.
+ * An SVG rather than a glyph, because the character route has no pair that works. ▸/▾
+ * (U+25B8/25BE) ink a fraction of their em box, so scaling them up grew the line box
+ * around the same faint mark; ►/▼ (U+25BA/25BC) are legible but come from different glyph
+ * families — a "pointer" and a triangle — and render at visibly different sizes; ▶ (U+25B6)
+ * would match ▼ but takes an emoji presentation on some platforms. One path rotated 90°
+ * sidesteps all of it: both states are the same shape at the same size, by construction,
+ * in every font.
+ *
+ * Decorative: the state it depicts is already on the button as `aria-expanded`, and the
+ * button carries the label.
  */
-export const CARET_OPEN = '▼'
-export const CARET_SHUT = '►'
-
 export function Caret({ closed }: { closed: boolean }) {
-  return <span className="caret">{closed ? CARET_SHUT : CARET_OPEN}</span>
+  return (
+    <svg className={`caret${closed ? ' shut' : ''}`} viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+      <path d="M1.5 4 h9 L6 9.5 Z" />
+    </svg>
+  )
 }
