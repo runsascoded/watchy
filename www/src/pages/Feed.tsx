@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { boolParam, datesParam, stringParam, useUrlState } from 'use-prms'
 import { useActions } from 'use-kbd'
@@ -12,7 +12,7 @@ import { RepoHeader } from '../components/RepoHeader'
 import { TargetPicker } from '../components/TargetPicker'
 import { Tooltip } from '../components/Tooltip'
 import { TargetLink } from '../target'
-import { isDayClosed, visibleDays } from '../folds'
+import { anyDayOpen, isDayClosed, visibleDays } from '../folds'
 import { targetParam, targetsParam } from '../params'
 import { KIND_EMOJI, KIND_VERB } from '../kinds'
 import { INTERNAL } from '../scope'
@@ -84,6 +84,10 @@ export default function Feed() {
       return get<{ events: Event[] }>(`/api/events?${params}`)
     },
     initialPageParam: null as null | { ts: string; id: number },
+    // Nothing open means nothing to fetch: with `?ca` and no exceptions every header comes
+    // from `/api/days`. Opening a day flips this back on, and paging walks the cursor from
+    // the top until it reaches that day — the cost of a single event stream, unchanged.
+    enabled: anyDayOpen(except, closedByDefault),
     getNextPageParam: last => {
       const tail = last.events[last.events.length - 1]
       return last.events.length === PAGE ? { ts: tail.ts, id: tail.id } : undefined
@@ -139,7 +143,7 @@ export default function Feed() {
   const pagesLoaded = data?.pages.length ?? 0
   useEffect(() => {
     const el = sentinelRef.current
-    if (!el || !frontier || !hasNextPage || isFetchingNextPage) return
+    if (!el || frontier === null || !hasNextPage || isFetchingNextPage) return
     const obs = new IntersectionObserver(es => { if (es.some(x => x.isIntersecting)) fetchNextPage() }, { rootMargin: '600px' })
     obs.observe(el)
     return () => obs.disconnect()
@@ -274,13 +278,24 @@ export default function Feed() {
             onTarget={setTarget}
           />
         )
-        if (shut) return <section key={d}>{header}</section>
+        // The sentinel rides with the frontier day rather than the end of the list: with a
+        // collapsed history below it, the bottom of the page is nowhere near the rows.
+        const tail = d === frontier && (
+          <Fragment key={`${d}-more`}>
+            <div ref={sentinelRef} />
+            {isFetchingNextPage && <p className="dim">loading more…</p>}
+          </Fragment>
+        )
+        if (shut) return <Fragment key={d}><section>{header}</section>{tail}</Fragment>
         if (!byRepo) {
           return (
-            <section key={d}>
-              {header}
-              <ul>{dayEvents.map(e => line(e, true))}</ul>
-            </section>
+            <Fragment key={d}>
+              <section>
+                {header}
+                <ul>{dayEvents.map(e => line(e, true))}</ul>
+              </section>
+              {tail}
+            </Fragment>
           )
         }
         const byTarget = new Map<string, Event[]>()
@@ -289,7 +304,8 @@ export default function Feed() {
           byTarget.get(e.target)!.push(e)
         }
         return (
-          <section key={d}>
+          <Fragment key={d}>
+          <section>
             {header}
             {[...byTarget.entries()].map(([t, evs]) => (
               <div className="repo-group" key={t}>
@@ -304,12 +320,16 @@ export default function Feed() {
               </div>
             ))}
           </section>
+          {tail}
+          </Fragment>
         )
       })}
-      {!isLoading && events.length === 0 && <p className="dim">no events match</p>}
-      <div ref={sentinelRef} />
-      {isFetchingNextPage && <p className="dim">loading more…</p>}
-      {!isLoading && !hasNextPage && events.length > 0 && <p className="dim">— end of history —</p>}
+      {/* Keyed off the day list, not the loaded events: with nothing open there are no
+          events by design, and "no events match" under 784 headers would be a lie. */}
+      {!isLoading && dayData && shown.length === 0 && <p className="dim">no events match</p>}
+      {/* No frontier means the list is complete — whether paging exhausted the stream or
+          everything is collapsed and the rollups already covered it. */}
+      {!isLoading && frontier === null && shown.length > 0 && <p className="dim">— end of history —</p>}
     </div>
   )
 }
