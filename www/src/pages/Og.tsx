@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { get, type Event } from '../api'
-import { KIND_EMOJI } from '../components/EventTimeline'
+import { KIND_EMOJI } from '../kinds'
 import { OgHeader } from '../components/OgHeader'
 
 const N = 14

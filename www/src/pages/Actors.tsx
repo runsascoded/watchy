@@ -6,8 +6,8 @@ import { exchangeKeyParam, SignInPanel } from '../auth'
 import { ActorCard } from '../components/ActorCard'
 import { Tooltip } from '../components/Tooltip'
 import { TargetLink } from '../target'
+import { kindEmoji } from '../kinds'
 
-const KIND_EMOJI: Record<string, string> = { star: '⭐️', unstar: '💔', follow: '🔔', unfollow: '🔕' }
 const MAX_ACTS = 8
 const MAX_ORGS = 4
 const DAY_MS = 86_400_000
@@ -234,7 +234,7 @@ export default function Actors() {
                     {a.events.slice(0, MAX_ACTS).map((e, i) => (
                       <div className={`act${e.active ? '' : ' gone'}`} key={i}>
                         <Tooltip tip={`${e.kind} · ${e.ts}${e.active ? '' : ' — no longer active'}`}>
-                          <span>{KIND_EMOJI[e.kind] ?? e.kind}</span>
+                          <span>{kindEmoji(e.kind)}</span>
                         </Tooltip>
                         {' '}<TargetLink target={e.target} />
                         <span className="dim ts">{e.ts.slice(0, 10)}</span>

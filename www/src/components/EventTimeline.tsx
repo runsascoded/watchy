@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { autoUpdate, flip, offset, shift, useFloating } from '@floating-ui/react'
 import { get, type Event } from '../api'
+import { KIND_EMOJI } from '../kinds'
 
 const { max, min, floor } = Math
 
-export const KIND_EMOJI: Record<string, string> = { star: '⭐', unstar: '💔', follow: '🔔', unfollow: '🔕' }
 
 const W = 800
 const H = 150
