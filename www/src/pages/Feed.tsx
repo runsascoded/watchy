@@ -14,6 +14,7 @@ import { Tooltip } from '../components/Tooltip'
 import { TargetLink } from '../target'
 import { anyDayOpen, isDayClosed, visibleDays } from '../folds'
 import { targetParam, targetsParam } from '../params'
+import { dayRepos } from '../repos'
 import { KIND_EMOJI, KIND_VERB } from '../kinds'
 import { INTERNAL } from '../scope'
 
@@ -303,22 +304,29 @@ export default function Feed() {
           if (!byTarget.has(e.target)) byTarget.set(e.target, [])
           byTarget.get(e.target)!.push(e)
         }
+        // Membership from the rollup, not from what has paged in — see dayRepos.
+        const cells = rollups.get(d)?.cells ?? []
+        const repos = dayRepos([...byTarget.keys()], cells)
         return (
           <Fragment key={d}>
           <section>
             {header}
-            {[...byTarget.entries()].map(([t, evs]) => (
-              <div className="repo-group" key={t}>
-                <RepoHeader
-                  target={t}
-                  cells={(rollups.get(d)?.cells ?? []).filter(c => c.target === t)}
-                  loaded={evs.length}
-                  closed={folded.has(t)}
-                  onToggle={() => toggleRepo(t)}
-                />
-                {!folded.has(t) && <ul>{evs.map(e => line(e, false))}</ul>}
-              </div>
-            ))}
+            {repos.map(t => {
+              const evs = byTarget.get(t) ?? []
+              return (
+                <div className="repo-group" key={t}>
+                  <RepoHeader
+                    target={t}
+                    cells={cells.filter(c => c.target === t)}
+                    loaded={evs.length}
+                    closed={folded.has(t)}
+                    onToggle={() => toggleRepo(t)}
+                  />
+                  {/* A repo the stream hasn't reached shows its header and counts, not an empty list */}
+                  {!folded.has(t) && evs.length > 0 && <ul>{evs.map(e => line(e, false))}</ul>}
+                </div>
+              )
+            })}
           </section>
           {tail}
           </Fragment>
