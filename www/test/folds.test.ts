@@ -3,7 +3,7 @@
 // button looked like it had undone its own work. A day the user has never seen has to take
 // the current default, which is only expressible as default-plus-exceptions.
 import { describe, expect, it } from 'vitest'
-import { isDayClosed, visibleDays } from '../src/folds'
+import { anyDayOpen, isDayClosed, visibleDays } from '../src/folds'
 
 /** Which of `days` render collapsed, in order. */
 const shut = (days: string[], except: string[], closedByDefault: boolean) =>
@@ -45,25 +45,50 @@ describe('visibleDays', () => {
 
   it('draws every day when they are all collapsed, however little has been fetched', () => {
     // The fix: collapsed headers come from /api/days, so none of them waits on paging.
-    expect(visibleDays(DAYS_DESC, () => true, noneLoaded)).toEqual({ shown: DAYS_DESC, frontier: false })
+    expect(visibleDays(DAYS_DESC, () => true, noneLoaded)).toEqual({ shown: DAYS_DESC, frontier: null })
   })
 
-  it('stops at the first open day still waiting on rows, and flags it', () => {
+  it('holds back open days below the frontier, which would have no rows to show', () => {
     const loaded = (d: string) => d > '2026-08-25'
     expect(visibleDays(DAYS_DESC, () => false, loaded))
-      .toEqual({ shown: ['2026-08-27', '2026-08-26', '2026-08-25'], frontier: true })
+      .toEqual({ shown: ['2026-08-27', '2026-08-26', '2026-08-25'], frontier: '2026-08-25' })
+  })
+
+  it('keeps drawing collapsed days below the frontier — they need nothing', () => {
+    // Opening one day out of a collapsed history must not hide the rest of the history.
+    const closed = (d: string) => d !== '2026-08-27'
+    expect(visibleDays(DAYS_DESC, closed, noneLoaded))
+      .toEqual({ shown: DAYS_DESC, frontier: '2026-08-27' })
   })
 
   it('runs past collapsed days to reach an open one that still needs rows', () => {
     const closed = (d: string) => d !== '2026-08-24'
-    expect(visibleDays(DAYS_DESC, closed, noneLoaded)).toEqual({ shown: DAYS_DESC, frontier: true })
+    expect(visibleDays(DAYS_DESC, closed, noneLoaded)).toEqual({ shown: DAYS_DESC, frontier: '2026-08-24' })
   })
 
   it('draws the whole list with no frontier once history is exhausted', () => {
-    expect(visibleDays(DAYS_DESC, () => false, allLoaded)).toEqual({ shown: DAYS_DESC, frontier: false })
+    expect(visibleDays(DAYS_DESC, () => false, allLoaded)).toEqual({ shown: DAYS_DESC, frontier: null })
   })
 
   it('has nothing to show, and nothing to wait for, before any day is known', () => {
-    expect(visibleDays([], () => false, noneLoaded)).toEqual({ shown: [], frontier: false })
+    expect(visibleDays([], () => false, noneLoaded)).toEqual({ shown: [], frontier: null })
+  })
+})
+
+describe('anyDayOpen', () => {
+  it('is true by default, when every day is open', () => {
+    expect(anyDayOpen(new Set(), false)).toBe(true)
+  })
+
+  it('is false once everything is collapsed — nothing needs rows, so nothing fetches', () => {
+    expect(anyDayOpen(new Set(), true)).toBe(false)
+  })
+
+  it('is true again as soon as one day is re-opened against a closed default', () => {
+    expect(anyDayOpen(new Set(['2026-08-24']), true)).toBe(true)
+  })
+
+  it('stays true when the default is open and some days are collapsed', () => {
+    expect(anyDayOpen(new Set(['2026-08-24']), false)).toBe(true)
   })
 })
